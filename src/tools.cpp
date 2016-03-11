@@ -17,6 +17,13 @@
 #include <libsgp4/TimeSpan.h>
 #include <libsgp4/Tle.h>
 
+#include <libsgp4/DateTime.h>
+#include <libsgp4/Eci.h>
+#include <libsgp4/Globals.h>
+#include <libsgp4/SGP4.h>
+#include <libsgp4/TimeSpan.h>
+#include <libsgp4/Tle.h>
+
 #include "D2D/tools.hpp"
 
 #include <Astro/constants.hpp>
@@ -74,7 +81,6 @@ StateHistory sampleSGP4Orbit( const Tle& tle,
 
     // compute size of propagation time step
     const double timeStep = propagationTime / static_cast< double >( numberOfSamples );
-
     StateHistory stateHistory;
     stateHistory[ initialEpochJulian ] = initialState;
 
