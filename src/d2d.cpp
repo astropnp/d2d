@@ -117,6 +117,11 @@ int main( const int numberOfInputs, const char* inputArguments[ ] )
         std::cout << "Mode:                         " << mode << std::endl;
         d2d::executeSGP4Scanner( config );
     }
+    else if ( mode.compare( "sgp4_fetch" ) == 0 )
+    {
+        std::cout << "Mode:                         " << mode << std::endl;
+        d2d::executeSGP4Scanner( config );
+    }
     else
     {
         std::cerr << "ERROR: Requested \"mode\" << mode << is invalid!" << std::endl;
