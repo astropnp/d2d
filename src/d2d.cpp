@@ -120,7 +120,7 @@ int main( const int numberOfInputs, const char* inputArguments[ ] )
     else if ( mode.compare( "sgp4_fetch" ) == 0 )
     {
         std::cout << "Mode:                         " << mode << std::endl;
-        d2d::executeSGP4Scanner( config );
+        d2d::fetchSGP4Transfer( config );
     }
     else
     {
