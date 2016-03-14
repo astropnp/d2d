@@ -18,20 +18,20 @@ namespace d2d
 //! Fetch details of specific debris-to-debris SGP4 transfer.
 /*!
  * Fetches all data relating to a specific SGP4 transfer stored in the specified SQLite
- * database. The transfer to fetch is specified by its ID in the "SGP4_scanner" table.
+ * database. The transfer to fetch is specified by the transfer ID in the "sgp4_scanner_results" table.
  *
  * The data retrieved from the database is used to propagate the transfers and a time series of the
  * Cartesian elements of the departure orbit, arrival orbit, and transfer trajectory is written to
  * an output file.
  *
- * This function is executed if the user provides "SGP4_fetch" as the application mode.
+ * This function is executed if the user provides "sgp4_fetch" as the application mode.
  *
  * @sa sgp4Scanner, createSGP4ScannerTable
  * @param[in] config User-defined configuration options (extracted from JSON input file)
  */
 void fetchSGP4Transfer( const rapidjson::Document& config );
 
-//! Input for SGP4_fetch application mode.
+//! Input for sgp4_fetch application mode.
 /*!
  * Data struct containing all valid input parameters to fetch a SGP4 transfer from an SQLite
  * database, execute the transfer, and write the output to file. This struct is populated by the
@@ -39,7 +39,7 @@ void fetchSGP4Transfer( const rapidjson::Document& config );
  *
  * @sa checkSGP4FetchInput, fetchSGP4Transfer
  */
-struct SGP4FetchInput
+struct sgp4FetchInput
 {
 public:
 
@@ -49,6 +49,7 @@ public:
      *
      * @sa checkSGP4FetchInput, fetchSGP4Transfer
      * @param[in] aDatabasePath                 Path to SQLite database
+     * @param[in] aCatalogPath                  Path to TLE catalog file
      * @param[in] aTransferId                   Transfer ID that identifies transfer to fetch
      * @param[in] numberOfOutputSteps           Number of time steps to generate for output files
      * @param[in] anOutputDirectory             Path to output directory to write output files to
@@ -62,18 +63,20 @@ public:
      * @param[in] aTransferOrbitFilename        Output filename for sampled transfer orbit
      * @param[in] aTransferPathFilename         Output filename for sampled transfer path
      */
-    SGP4FetchInput( const std::string& aDatabasePath,
-                       const int          aTransferId,
-                       const int          numberOfOutputSteps,
-                       const std::string& anOutputDirectory,
-                       const std::string& aMetadataFilename,
-                       const std::string& aDepartureOrbitFilename,
-                       const std::string& aDeparturePathFilename,
-                       const std::string& anArrivalOrbitFilename,
-                       const std::string& anArrivalPathFilename,
-                       const std::string& aTransferOrbitFilename,
-                       const std::string& aTransferPathFilename )
+    sgp4FetchInput( const std::string& aDatabasePath,
+                    const std::string& aCatalogPath,
+                    const int          aTransferId,
+                    const int          numberOfOutputSteps,
+                    const std::string& anOutputDirectory,
+                    const std::string& aMetadataFilename,
+                    const std::string& aDepartureOrbitFilename,
+                    const std::string& aDeparturePathFilename,
+                    const std::string& anArrivalOrbitFilename,
+                    const std::string& anArrivalPathFilename,
+                    const std::string& aTransferOrbitFilename,
+                    const std::string& aTransferPathFilename )
         : databasePath( aDatabasePath ),
+          catalogPath( aCatalogPath ),
           transferId( aTransferId ),
           outputSteps( numberOfOutputSteps ),
           outputDirectory( anOutputDirectory ),
@@ -89,6 +92,9 @@ public:
     //! Path to SQLite database with transfer data.
     const std::string databasePath;
 
+    //! Path to TLE catalog file.
+    const std::string catalogPath;
+
     //! Transfer ID.
     const int transferId;
 
@@ -98,7 +104,7 @@ public:
     //! Path to output directory (relative or absolute).
     const std::string outputDirectory;
 
-    //! Simulation metadata output filename.
+    // Output filename for simulation metadata.
     const std::string metadataFilename;
 
     // Output filename for sampled departure orbit.
@@ -124,17 +130,17 @@ protected:
 private:
 };
 
-//! Check input parameters for SGP4_fetch.
+//! Check input parameters for sgp4_fetch.
 /*!
  * Checks that all inputs to fetch a SGP4 transfer from the specified SQLite database is valid.
  * If not, an error is thrown with a short description of the problem. If all inputs are valid, a
  * data struct containing all the inputs is returned.
  *
- * @sa fetchSGP4Transfer, SGP4TransferFetch
+ * @sa fetchSGP4Transfer, sgp4TransferFetch
  * @param[in] config User-defined configuration options (extracted from JSON input file)
- * @return           Struct containing all valid input for SGP4_fetch application mode
+ * @return           Struct containing all valid input for sgp4_fetch application mode
  */
-SGP4FetchInput checkSGP4FetchInput( const rapidjson::Document& config );
+sgp4FetchInput checkSGP4FetchInput( const rapidjson::Document& config );
 
 } // namespace d2d
 

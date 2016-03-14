@@ -9,13 +9,11 @@
 #include <iostream>
 #include <sstream>
 
-#include <keplerian_toolbox.h>
+#include <Atom/convertCartesianStateToTwoLineElements.hpp>
 
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <Astro/astro.hpp>
-
-#include <Atom/convertCartesianStateToTwoLineElements.hpp>
 
 #include <libsgp4/Tle.h>
 #include <libsgp4/SGP4.h>
@@ -32,7 +30,7 @@ namespace d2d
 void fetchSGP4Transfer( const rapidjson::Document& config )
 {
     // Verify config parameters. Exception is thrown if any of the parameters are missing.
-    const SGP4FetchInput input = checkSGP4FetchInput( config );
+    const sgp4FetchInput input = checkSGP4FetchInput( config );
 
     // Set gravitational parameter used by SGP4 targeter.
     const double earthGravitationalParameter = kMU;
@@ -45,22 +43,89 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
     std::cout << "******************************************************************" << std::endl;
     std::cout << std::endl;
 
+    // extract TLE's from the catalog (to be used for departure and arrival object's sgp4 propagated orbits and paths)
+    std::cout << "Parsing TLE catalog ... " << std::endl;
+
+    // Parse catalog and store TLE objects.
+    std::ifstream catalogFile( input.catalogPath.c_str( ) );
+    std::string catalogLine;
+
+    // Check if catalog is 2-line or 3-line version.
+    std::getline( catalogFile, catalogLine );
+    const int tleLines = getTleCatalogType( catalogLine );
+
+    // Reset file stream to start of file.
+    catalogFile.seekg( 0, std::ios::beg );
+
+    typedef std::vector< std::string > TleStrings;
+    typedef std::vector< Tle > TleObjects;
+    TleObjects tleObjects;
+
+    while ( std::getline( catalogFile, catalogLine ) )
+    {
+        TleStrings tleStrings;
+        removeNewline( catalogLine );
+        tleStrings.push_back( catalogLine );
+        std::getline( catalogFile, catalogLine );
+        removeNewline( catalogLine );
+        tleStrings.push_back( catalogLine );
+
+        if ( tleLines == 3 )
+        {
+            std::getline( catalogFile, catalogLine );
+            removeNewline( catalogLine );
+            tleStrings.push_back( catalogLine );
+            tleObjects.push_back( Tle( tleStrings[ 0 ], tleStrings[ 1 ], tleStrings[ 2 ] ) );
+        }
+
+        else if ( tleLines == 2 )
+        {
+            tleObjects.push_back( Tle( tleStrings[ 0 ], tleStrings[ 1 ] ) );
+        }
+    }
+
+    catalogFile.close( );
+    const double totalTleObjects = tleObjects.size( );
+    std::cout << totalTleObjects << " TLE objects parsed from catalog!" << std::endl;
+
     std::cout << "Fetching transfer from database ... " << std::endl;
 
-    // Connect to database and fetch metadata required to construct SGP4TransferInput object.
+    // Connect to database and fetch metadata required to construct sgp4TransferInput object.
     SQLite::Database database( input.databasePath.c_str( ), SQLITE_OPEN_READONLY );
+
+    // select transfer data from the sgp4_scanner_results table in database
+    std::ostringstream sgp4TransferSelect;
+    sgp4TransferSelect << "SELECT * FROM sgp4_scanner_results WHERE transfer_id = "
+                   << input.transferId << ";";
+    SQLite::Statement sgp4Query( database, sgp4TransferSelect.str( ) );
+
+    // retrieve the data from the sgp4_scanner_results
+    sgp4Query.executeStep( );
+
+    const int sgp4TransferId                        = sgp4Query.getColumn( 0 );
+    const int lambertTransferId                     = sgp4Query.getColumn( 1 );
+    const double sgp4ArrivalPositionX               = sgp4Query.getColumn( 2 );
+    const double sgp4ArrivalPositionY               = sgp4Query.getColumn( 3 );
+    const double sgp4ArrivalPositionZ               = sgp4Query.getColumn( 4 );
+    const double sgp4ArrivalVelocityX               = sgp4Query.getColumn( 5 );
+    const double sgp4ArrivalVelocityY               = sgp4Query.getColumn( 6 );
+    const double sgp4ArrivalVelocityZ               = sgp4Query.getColumn( 7 );
+    const double sgp4ArrivalPositionErrorX          = sgp4Query.getColumn( 8 );
+    const double sgp4ArrivalPositionErrorY          = sgp4Query.getColumn( 9 );
+    const double sgp4ArrivalPositionErrorZ          = sgp4Query.getColumn( 10 );
+    const double sgp4ArrivalPositionError           = sgp4Query.getColumn( 11 );
+    const double sgp4ArrivalVelocityErrorX          = sgp4Query.getColumn( 12 );
+    const double sgp4ArrivalVelocityErrorY          = sgp4Query.getColumn( 13 );
+    const double sgp4ArrivalVelocityErrorZ          = sgp4Query.getColumn( 14 );
+    const double sgp4ArrivalVelocityError           = sgp4Query.getColumn( 15 );
+
+    std::cout << "SGP4 transfer successfully fetched from database!" << std::endl;
 
     // select transfer data from the lambert_scanner_results table in database
     std::ostringstream lambertTransferSelect;
     lambertTransferSelect << "SELECT * FROM lambert_scanner_results WHERE transfer_id = "
-                   << input.transferId << ";";
+                   << lambertTransferId << ";";
     SQLite::Statement lambertQuery( database, lambertTransferSelect.str( ) );
-
-    // select transfer data from the sgp4_scanner_results table in database
-    std::ostringstream SGP4TransferSelect;
-    SGP4TransferSelect << "SELECT * FROM sgp4_scanner_results WHERE lambert_transfer_id = "
-                   << input.transferId << ";";
-    SQLite::Statement SGP4Query( database, SGP4TransferSelect.str( ) );
 
     // retrieve the data from lambert_scanner_results
     lambertQuery.executeStep( );
@@ -90,31 +155,10 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
 
     std::cout << "Lambert transfer successfully fetched from database!" << std::endl;
 
-    // retrieve the data from the sgp4_scanner_results
-    SGP4Query.executeStep( );
-
-    const int lambertTransferId                     = SGP4Query.getColumn( 1 );
-    const double sgp4ArrivalPositionX               = SGP4Query.getColumn( 2 );
-    const double sgp4ArrivalPositionY               = SGP4Query.getColumn( 3 );
-    const double sgp4ArrivalPositionZ               = SGP4Query.getColumn( 4 );
-    const double sgp4ArrivalVelocityX               = SGP4Query.getColumn( 5 );
-    const double sgp4ArrivalVelocityY               = SGP4Query.getColumn( 6 );
-    const double sgp4ArrivalVelocityZ               = SGP4Query.getColumn( 7 );
-    const double sgp4ArrivalPositionErrorX          = SGP4Query.getColumn( 8 );
-    const double sgp4ArrivalPositionErrorY          = SGP4Query.getColumn( 9 );
-    const double sgp4ArrivalPositionErrorZ          = SGP4Query.getColumn( 10 );
-    const double sgp4ArrivalPositionError           = SGP4Query.getColumn( 11 );
-    const double sgp4ArrivalVelocityErrorX          = SGP4Query.getColumn( 12 );
-    const double sgp4ArrivalVelocityErrorY          = SGP4Query.getColumn( 13 );
-    const double sgp4ArrivalVelocityErrorZ          = SGP4Query.getColumn( 14 );
-    const double sgp4ArrivalVelocityError           = SGP4Query.getColumn( 15 );
-
-    std::cout << "SGP4 transfer successfully fetched from database!" << std::endl;
-
     std::cout << "Propagating transfer ... " << std::endl;
 
     // Compute and store transfer state history by propagating conic section (Kepler orbit).
-    Vector6 transferDepartureState;
+    std::vector< double > transferDepartureState( 6 );
     transferDepartureState[ 0 ] = departurePositionX;
     transferDepartureState[ 1 ] = departurePositionY;
     transferDepartureState[ 2 ] = departurePositionZ;
@@ -122,26 +166,16 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
     transferDepartureState[ 4 ] = departureVelocityY + departureDeltaVY;
     transferDepartureState[ 5 ] = departureVelocityZ + departureDeltaVZ;
 
-    const StateHistory transferPath = sampleKeplerOrbit( transferDepartureState,
-                                                         timeOfFlight,
-                                                         input.outputSteps,
-                                                         earthGravitationalParameter,
-                                                         departureEpoch );
-
     // compute and store transfer state history by sgp4 propagation
-    std::vector< double > transferDepartureStateVector( 6 );
-    for ( int i = 0; i < 6; i++ )
-        transferDepartureStateVector[ i ] = transferDepartureState[ i ];
-    
     DateTime transferDepartureEpoch( ( departureEpoch - 1721425.5 ) * TicksPerDay );
-    // Tle transferOrbitTle = atom::convertCartesianStateToTwoLineElements< double, std::vector< double > >( transferDepartureStateVector,
-    //                                                                                                       transferDepartureEpoch );
-    // std::cout << "transfer Orbit Tle computed successfully!" << std::endl;
+    Tle transferOrbitTle = atom::convertCartesianStateToTwoLineElements< double, std::vector< double > >( transferDepartureState,
+                                                                                                          transferDepartureEpoch );
+    std::cout << "transfer Orbit Tle computed successfully!" << std::endl;
 
-    // const StateHistory sgp4TransferPath = sampleSGP4Orbit( transferOrbitTle,
-    //                                                        departureEpoch,
-    //                                                        timeOfFlight,
-    //                                                        input.outputSteps );
+    const StateHistory sgp4TransferPath = sampleSGP4Orbit( transferOrbitTle,
+                                                           timeOfFlight,
+                                                           input.outputSteps,
+                                                           departureEpoch );
 
     std::cout << "Transfer propagated successfully!" << std::endl;
 
@@ -175,12 +209,16 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
     }
     metadataFile << std::endl;
 
-    print( metadataFile, "revolutions", revolutions, "-" );
+    print( metadataFile, "Lambert revolutions", revolutions, "-" );
     metadataFile << std::endl;
-    print( metadataFile, "transfer_delta_v", transferDeltaV, "km/s" );
+    print( metadataFile, "Lambert transfer_delta_v", transferDeltaV, "km/s" );
+    metadataFile << std::endl;
+    print( metadataFile, "Position error magnitude", sgp4ArrivalPositionError, "km" );
+    metadataFile << std::endl;
+    print( metadataFile, "Velocity error magnitude", sgp4ArrivalVelocityError, "km/s" );
     metadataFile.close( );
 
-    // Defined common header line for all the ephemeric files generated below.
+    // Defined common header line for all the ephemeris files generated below.
     const std::string ephemerisFileHeader = "jd,x,y,z,xdot,ydot,zdot";
 
     Vector6 departureState;
@@ -199,33 +237,46 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
         = astro::computeKeplerOrbitalPeriod( departureStateKepler[ astro::semiMajorAxisIndex ],
                                              earthGravitationalParameter );
 
-    // Sample departure orbit.
-    const StateHistory departureOrbit = sampleKeplerOrbit( departureState,
-                                                           departureOrbitalPeriod,
-                                                           input.outputSteps,
-                                                           earthGravitationalParameter,
-                                                           departureEpoch );
+    // Get departure object's TLE from the parsed TLE catalog
+    bool departureTleFound = false;
+    int departureTleIndex = 0;
+    Tle departureOrbitTle;
+    while ( departureTleFound == false && departureTleIndex < totalTleObjects )
+    {
+        if ( tleObjects[ departureTleIndex ].NoradNumber( ) == departureObjectId )
+        {
+            departureTleFound = true;
+            departureOrbitTle = tleObjects[ departureTleIndex ];
+        }
+        ++departureTleIndex;
+    }    
 
-    // Write sampled departure orbit to file.
-    std::ostringstream departureOrbitFilePath;
-    departureOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    // Sample sgp4 departure orbit.
+    const StateHistory sgp4DepartureOrbit = sampleSGP4Orbit( departureOrbitTle,
+                                                             departureOrbitalPeriod,
+                                                             input.outputSteps,
+                                                             departureEpoch );
+
+    // Write sampled sgp4 departure orbit to file.
+    std::ostringstream sgp4DepartureOrbitFilePath;
+    sgp4DepartureOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                            << input.departureOrbitFilename;
-    std::ofstream departureOrbitFile( departureOrbitFilePath.str( ).c_str( ) );
-    print( departureOrbitFile, departureOrbit, ephemerisFileHeader );
+    std::ofstream sgp4DepartureOrbitFile( sgp4DepartureOrbitFilePath.str( ).c_str( ) );
+    print( sgp4DepartureOrbitFile, sgp4DepartureOrbit, ephemerisFileHeader );
+    sgp4DepartureOrbitFile.close( );
 
-    // Sample departure path.
-    const StateHistory departurePath = sampleKeplerOrbit( departureState,
-                                                          timeOfFlight,
-                                                          input.outputSteps,
-                                                          earthGravitationalParameter,
-                                                          departureEpoch );
+    // Sample sgp4 departure path.
+    const StateHistory sgp4DeparturePath = sampleSGP4Orbit( departureOrbitTle,
+                                                            timeOfFlight,
+                                                            input.outputSteps,
+                                                            departureEpoch );
     // Write sampled departure path to file.
-    std::ostringstream departurePathFilePath;
-    departurePathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    std::ostringstream sgp4DeparturePathFilePath;
+    sgp4DeparturePathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                           << input.departurePathFilename;
-    std::ofstream departurePathFile( departurePathFilePath.str( ).c_str( ) );
-    print( departurePathFile, departurePath, ephemerisFileHeader );
-    departurePathFile.close( );
+    std::ofstream sgp4DeparturePathFile( sgp4DeparturePathFilePath.str( ).c_str( ) );
+    print( sgp4DeparturePathFile, sgp4DeparturePath, ephemerisFileHeader );
+    sgp4DeparturePathFile.close( );
 
     Vector6 arrivalState;
     arrivalState[ 0 ] = arrivalPositionX;
@@ -243,42 +294,57 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
         = astro::computeKeplerOrbitalPeriod( arrivalStateKepler[ astro::semiMajorAxisIndex ],
                                              earthGravitationalParameter );
 
-    // Sample arrival orbit.
-    const StateHistory arrivalOrbit = sampleKeplerOrbit( arrivalState,
-                                                         arrivalOrbitalPeriod,
-                                                         input.outputSteps,
-                                                         earthGravitationalParameter,
-                                                         departureEpoch );
+    // Get arrival object's TLE from the parsed TLE catalog
+    bool arrivalTleFound = false;
+    int arrivalTleIndex = 0;
+    Tle arrivalOrbitTle;
+    while ( arrivalTleFound == false && arrivalTleIndex < totalTleObjects )
+    {
+        if ( tleObjects[ arrivalTleIndex ].NoradNumber( ) == arrivalObjectId )
+        {
+            arrivalTleFound = true;
+            arrivalOrbitTle = tleObjects[ arrivalTleIndex ]; 
+        }
+        ++arrivalTleIndex;
+    }    
 
-    // Write sampled arrival orbit to file.
-    std::ostringstream arrivalOrbitFilePath;
-    arrivalOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    // Sample sgp4 arrival orbit.
+    const StateHistory sgp4ArrivalOrbit = sampleSGP4Orbit( arrivalOrbitTle,
+                                                           timeOfFlight,
+                                                           input.outputSteps,
+                                                           departureEpoch );
+
+    // Write sampled sgp4 arrival orbit to file.
+    std::ostringstream sgp4ArrivalOrbitFilePath;
+    sgp4ArrivalOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                          << input.arrivalOrbitFilename;
-    std::ofstream arrivalOrbitFile( arrivalOrbitFilePath.str( ).c_str( ) );
-    print( arrivalOrbitFile, arrivalOrbit, ephemerisFileHeader );
-    arrivalOrbitFile.close( );
+    std::ofstream sgp4ArrivalOrbitFile( sgp4ArrivalOrbitFilePath.str( ).c_str( ) );
+    print( sgp4ArrivalOrbitFile, sgp4ArrivalOrbit, ephemerisFileHeader );
+    sgp4ArrivalOrbitFile.close( );
 
     // Sample arrival path.
-    const double timeOfFlightInDays = timeOfFlight / ( 24.0 * 3600.0 );
-    const StateHistory arrivalPath = sampleKeplerOrbit( arrivalState,
-                                                        -timeOfFlight,
-                                                        input.outputSteps,
-                                                        earthGravitationalParameter,
-                                                        departureEpoch + timeOfFlightInDays );
+    const StateHistory sgp4ArrivalPath = sampleSGP4Orbit( arrivalOrbitTle,
+                                                          timeOfFlight,
+                                                          input.outputSteps,
+                                                          departureEpoch );
 
     // Write sampled arrival path to file.
-    std::ostringstream arrivalPathFilePath;
-    arrivalPathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    std::ostringstream sgp4ArrivalPathFilePath;
+    sgp4ArrivalPathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                         << input.arrivalPathFilename;
-    std::ofstream arrivalPathFile( arrivalPathFilePath.str( ).c_str( ) );
-    print( arrivalPathFile, arrivalPath, ephemerisFileHeader );
-    arrivalPathFile.close( );
+    std::ofstream sgp4ArrivalPathFile( sgp4ArrivalPathFilePath.str( ).c_str( ) );
+    print( sgp4ArrivalPathFile, sgp4ArrivalPath, ephemerisFileHeader );
+    sgp4ArrivalPathFile.close( );
 
     // Sample transfer trajectory.
 
     // Compute period of transfer orbit.
+    Vector6 transferDepartureStateArray;
+    for (int i = 0; i < 6; i++ )
+        transferDepartureStateArray[ i ] = transferDepartureState[ i ];
+
     const Vector6 transferDepartureStateKepler
-        = astro::convertCartesianToKeplerianElements( transferDepartureState,
+        = astro::convertCartesianToKeplerianElements( transferDepartureStateArray,
                                                       earthGravitationalParameter );
     const double transferOrbitalPeriod
         = astro::computeKeplerOrbitalPeriod(
@@ -286,35 +352,37 @@ void fetchSGP4Transfer( const rapidjson::Document& config )
             earthGravitationalParameter );
 
     // Sample transfer orbit.
-    const StateHistory transferOrbit
-        = sampleKeplerOrbit( transferDepartureState,
-                             transferOrbitalPeriod,
-                             input.outputSteps,
-                             earthGravitationalParameter,
-                             departureEpoch );
+    const StateHistory sgp4TransferOrbit = sampleSGP4Orbit( transferOrbitTle,
+                                                            transferOrbitalPeriod,
+                                                            input.outputSteps,
+                                                            departureEpoch );
+
 
     // Write sampled transfer orbit to file.
-    std::ostringstream transferOrbitFilePath;
-    transferOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    std::ostringstream sgp4TransferOrbitFilePath;
+    sgp4TransferOrbitFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                           << input.transferOrbitFilename;
-    std::ofstream transferOrbitFile( transferOrbitFilePath.str( ).c_str( ) );
-    print( transferOrbitFile, transferOrbit, ephemerisFileHeader );
-    transferOrbitFile.close( );
+    std::ofstream sgp4TransferOrbitFile( sgp4TransferOrbitFilePath.str( ).c_str( ) );
+    print( sgp4TransferOrbitFile, sgp4TransferOrbit, ephemerisFileHeader );
+    sgp4TransferOrbitFile.close( );
 
     // Write sampled transfer path to file.
-    std::ostringstream transferPathFilePath;
-    transferPathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
+    std::ostringstream sgp4TransferPathFilePath;
+    sgp4TransferPathFilePath << input.outputDirectory << "/transfer" << input.transferId << "_"
                          << input.transferPathFilename;
-    std::ofstream transferPathFile( transferPathFilePath.str( ).c_str( ) );
-    print( transferPathFile, transferPath, ephemerisFileHeader );
-    transferPathFile.close( );
+    std::ofstream sgp4TransferPathFile( sgp4TransferPathFilePath.str( ).c_str( ) );
+    print( sgp4TransferPathFile, sgp4TransferPath, ephemerisFileHeader );
+    sgp4TransferPathFile.close( );
 }
 
-//! Check input parameters for lambert_fetch.
-LambertFetchInput checkLambertFetchInput( const rapidjson::Document& config )
+//! Check input parameters for sgp4_fetch.
+sgp4FetchInput checkSGP4FetchInput( const rapidjson::Document& config )
 {
     const std::string databasePath = find( config, "database" )->value.GetString( );
     std::cout << "Database                      " << databasePath << std::endl;
+
+    const std::string catalogPath = find( config, "catalog" )->value.GetString( );
+    std::cout << "Catalog                      " << catalogPath << std::endl;
 
     const int transferId = find( config, "transfer_id" )->value.GetInt( );
     std::cout << "Transfer ID                   " << transferId << std::endl;
@@ -348,17 +416,18 @@ LambertFetchInput checkLambertFetchInput( const rapidjson::Document& config )
     const std::string transferPathFilename = find( config, "transfer_path" )->value.GetString( );
     std::cout << "Transfer path file            " << transferPathFilename << std::endl;
 
-    return LambertFetchInput( databasePath,
-                              transferId,
-                              outputSteps,
-                              outputDirectory,
-                              metadataFilename,
-                              departureOrbitFilename,
-                              departurePathFilename,
-                              arrivalOrbitFilename,
-                              arrivalPathFilename,
-                              transferOrbitFilename,
-                              transferPathFilename );
+    return sgp4FetchInput( databasePath,
+                           catalogPath, 
+                           transferId,
+                           outputSteps,
+                           outputDirectory,
+                           metadataFilename,
+                           departureOrbitFilename,
+                           departurePathFilename,
+                           arrivalOrbitFilename,
+                           arrivalPathFilename,
+                           transferOrbitFilename,
+                           transferPathFilename );
 }
 
 } // namespace d2d

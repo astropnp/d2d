@@ -10,10 +10,11 @@ set(MAIN_SRC
 # Set project source files.
 set(SRC
  "${SRC_PATH}/catalogPruner.cpp"
-#  "${SRC_PATH}/lambertFetch.cpp"
+ "${SRC_PATH}/lambertFetch.cpp"
  "${SRC_PATH}/lambertScanner.cpp"
  "${SRC_PATH}/lambertTransfer.cpp"
  "${SRC_PATH}/SGP4Scanner.cpp"
+ "${SRC_PATH}/sgp4Fetch.cpp"
  "${SRC_PATH}/tools.cpp"
 # "${SRC_PATH}/SGP4Tools.cpp"
 )
