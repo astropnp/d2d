@@ -74,7 +74,6 @@ StateHistory sampleSGP4Orbit( const Tle& tle,
 
     // compute size of propagation time step
     const double timeStep = propagationTime / static_cast< double >( numberOfSamples );
-
     StateHistory stateHistory;
     stateHistory[ initialEpochJulian ] = initialState;
 
