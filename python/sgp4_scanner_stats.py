@@ -99,6 +99,8 @@ magnitudeTypes = [ 'positionErrorMagnitude', 'velocityErrorMagnitude' ]
 errorTypes = [ 'position error', 'velocity error' ]
 for loopIndex in range( 2 ):
   errorType = errorTypes[ loopIndex ]
+  print ""
+  print "Stats for " + errorType + ":"
   magnitudeError = scan_data[ magnitudeTypes[ loopIndex ] ]
 
   # Calculate mean, variance and standard deviation
@@ -123,6 +125,9 @@ for loopIndex in range( 2 ):
   print 'min error = ' + repr( minError )
 
   # Get interquartile range
+  q75, q25 = np.percentile( magnitudeError, [ 75, 25 ] )
+  interquartileRange = q75 - q25
+  print 'IQR = ' + repr( interquartileRange )
 
   # Print data to a csv file
   orbitType = config['orbit_type']
@@ -137,7 +142,7 @@ for loopIndex in range( 2 ):
                            'Error Type'           : errorType,                                    \
                            'Mean'                 : mu,                                           \
                            'Variance'             : variance,                                     \
-                           'Standard deviation'   : sigma,                                        \
+                           'Standard Deviation'   : sigma,                                        \
                            'median'               : median,                                       \
                            'Max. Error'           : maxError,                                     \
                            'Min. Error'           : minError,                                     \
