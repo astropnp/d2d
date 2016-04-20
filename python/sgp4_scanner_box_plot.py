@@ -147,7 +147,7 @@ for errorTypeIndex in range( len( errorType ) ):
     yLabel = 'Velocity error [km/s]'
     figureNameLabel = 'velocity error'
     annotation_xOffset = 0.12
-    annotation_yOffset = 0.02
+    annotation_yOffset = 0.003
     print ""
     print "Plotting velocity error box plot ..."
     print ""
