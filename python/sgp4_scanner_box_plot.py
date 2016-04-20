@@ -160,7 +160,7 @@ for errorTypeIndex in range( len( errorType ) ):
   fig = plt.figure( )
   axes = fig.gca( )
   # plotOut = plt.boxplot( magnitudeError, showfliers=False )
-  plotOut = plt.boxplot( magnitudeError )
+  plotOut = plt.boxplot( magnitudeError, sym='' )
   plt.setp( plotOut['boxes'], color='black' )
   plt.setp( plotOut['whiskers'], color='black' )
   plt.setp( plotOut['medians'], color='black' )
