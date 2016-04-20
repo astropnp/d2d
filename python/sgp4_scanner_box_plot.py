@@ -133,6 +133,7 @@ for errorTypeIndex in range( len( errorType ) ):
     yLabel = 'Position error [km]'
     figureNameLabel = 'position error'
     annotation_xOffset = 0.18
+    annotation_yOffset = 0
     print "Plotting position error box plot ..."
     print ""
     leo_magnitudeError = np.array( leo_scan_data[ 'positionErrorMagnitude' ], dtype=float )
@@ -146,6 +147,7 @@ for errorTypeIndex in range( len( errorType ) ):
     yLabel = 'Velocity error [km/s]'
     figureNameLabel = 'velocity error'
     annotation_xOffset = 0.12
+    annotation_yOffset = 0.02
     print ""
     print "Plotting velocity error box plot ..."
     print ""
@@ -175,7 +177,7 @@ for errorTypeIndex in range( len( errorType ) ):
 
     # Overlay median values
     axes.annotate( '%1.2f' % medianY,                                                             \
-                   xy=( medianX + annotation_xOffset, medianY ),                                  \
+                   xy=( medianX + annotation_xOffset, medianY + annotation_yOffset ),             \
                    xycoords='data',                                                               \
                    horizontalalignment='center',                                                  \
                    verticalalignment='center' )
