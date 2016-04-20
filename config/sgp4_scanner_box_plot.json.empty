@@ -1,0 +1,25 @@
+// Copyright (c) 2014-2016 Kartik Kumar, Dinamica Srl (me@kartikkumar.com)
+// Copyright (c) 2014-2016 Abhishek Agrawal, Delft University of Technology
+//                                           (abhishek.agrawal@protonmail.com)
+// Distributed under the MIT License.
+// See accompanying file LICENSE.md or copy at http://opensource.org/licenses/MIT
+{
+    // Path to SQLite databases containing scan data.
+    "leo_database"                  : "",
+    "heo_database"                  : "",
+    "geo_database"                  : "",
+
+    // Relative path to output directory where the plots will be saved.
+    // Do not include a '/' at the end.
+    "output_directory"              : "",
+
+    // Set name for the figure
+    "figure_name"                   : "",
+
+    // Set output format for the figure (example: ".pdf", ".png")
+    "figure_format"                 : "",
+
+    // Check for GUI
+    // If user machine has a display/GUI then put True, else False
+    "display"                       : ""
+}
