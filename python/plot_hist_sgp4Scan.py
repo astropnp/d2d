@@ -201,9 +201,9 @@ def plotComponents( errorX, errorY, errorZ,                                     
 					print "Using user defined axes limits"
 					print ""
 					plt.axis([xAxesLowerLimit,                                           		  \
-										xAxesUpperLimit,                                          \
-										yAxesLowerLimit,                                          \
-										yAxesUpperLimit])
+							  xAxesUpperLimit,                                          		  \
+						      yAxesLowerLimit,                                          		  \
+							  yAxesUpperLimit])
 
 	xLegend = mlines.Line2D( [], [], color=xcolor, label=xlegend )
 	yLegend = mlines.Line2D( [], [], color=ycolor, label=ylegend )
@@ -279,6 +279,10 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 		yAxesLowerLimit = config['set_axes_velocity'][ 2 ]
 		yAxesUpperLimit = config['set_axes_velocity'][ 3 ]
 
+	xmin, xmax, ymin, ymax = ax.axis('auto')
+	ax.set_xlim( xmin, xmax )
+	ax.set_ylim( ymin, ymax )
+
 	if xAxesLowerLimit != 0                                                                       \
 		or xAxesUpperLimit != 0                                                                   \
 			or yAxesLowerLimit != 0                                                               \
@@ -287,10 +291,6 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 					print ""
 					ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
 					ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
-
-	xmin, xmax, ymin, ymax = ax.axis('auto')
-	ax.set_xlim( xmin, xmax )
-	ax.set_ylim( ymin, ymax )
 
 	plt.legend( )
 	plt.grid( True )
@@ -405,6 +405,17 @@ for errorTypeIndex in range( len( errorType ) ):
 		n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',                  \
 									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
 
+		if xAxesLowerLimit != 0                                                      			  \
+			or xAxesUpperLimit != 0                                                    			  \
+				or yAxesLowerLimit != 0                                                  		  \
+					or yAxesUpperLimit != 0:
+						print "Using user defined axes limits"
+						print ""
+						plt.axis([xAxesLowerLimit,                                           	  \
+								  xAxesUpperLimit,                                          	  \
+							      yAxesLowerLimit,                                          	  \
+								  yAxesUpperLimit])
+
 		j2Legend = mlines.Line2D( [], [], color=j2CurveColor, label='J2' )
 		magnitudeLegend = mpatches.Patch( color=figureColor, label='Magnitude' )
 		lines = [ magnitudeLegend, j2Legend ]
@@ -413,6 +424,18 @@ for errorTypeIndex in range( len( errorType ) ):
 	else:
 		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False, 					  \
 									 facecolor=figureColor, alpha=1, label='Magnitude' )
+
+		if xAxesLowerLimit != 0                                                      			  \
+			or xAxesUpperLimit != 0                                                    			  \
+				or yAxesLowerLimit != 0                                                  		  \
+					or yAxesUpperLimit != 0:
+						print "Using user defined axes limits"
+						print ""
+						plt.axis([xAxesLowerLimit,                                           	  \
+								  xAxesUpperLimit,                                          	  \
+							      yAxesLowerLimit,                                          	  \
+								  yAxesUpperLimit])
+
 		# plt.legend( )
 
 	# Select appropriate unit and title for the error type
