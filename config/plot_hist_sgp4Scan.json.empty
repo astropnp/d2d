@@ -5,56 +5,70 @@
 // See accompanying file LICENSE.md or copy at http://opensource.org/licenses/MIT
 {
     // Path to SQLite database containing scan data.
-    "database"                  : "",
+    "database"                          : "",
 
     // Directory where the histogram is stored.
     // Do not add a '/' at the end of the output dierectory.
-    "output_directory"          : "",
+    "output_directory"                  : "",
 
     // Filename for histogram.
     // Do not mention error type in the file name, it will automatically be included by the python
     // plotting script.
-    "histogram_figure"          : "",
+    "histogram_figure"                  : "",
 
     // Add or remove j2 analysis curve in position and velocity error histogram plots.
     // Put True to add the j2 curve, else False.
-    "add_j2"                    : "",
+    "add_j2"                            : "",
 
     // Set reference frame for histogram plot of the error components.
     // For Earth-Centered Inertial, use "ECI".
     // For Radial-Tangen-Normal reference frame, use "RTN"
-    "frame"                     : "",
+    "frame"                             : "",
 
     // Set plot style for error component plots
     // Set to "True" for plot with lines and markers
     // Set to "False" for a histogram step plot with small bin size
-    "component_marker"          : "",
+    "component_marker"                  : "",
 
     // Set output format for the figure (example: ".pdf", ".png")
-    "figure_format"             : "",
+    "figure_format"                     : "",
 
     // Add or remove figure title.
     // To add a title to the figure, put True otherwise False.
-    "add_title"                 : "",
+    "add_title"                         : "",
 
     // Check for GUI
     // If user machine has a display/GUI then put True, else False
-    "display"                   : "",
+    "display"                           : "",
 
     // Set colortype for the figures.
     // For grayscale, put True otherwise False
-    "grayscale"                 : "",
+    "grayscale"                         : "",
 
-    // Set axes limit for the position and velocity error component's histogram plot
+    // Choose plot type for which axes limits have to be set manually.
+    // Ensure that if any of the options below is "TRUE", then set non zero limits for the
+    // corresponding "set_axes_position" and "set_axes_velocity" parameters in the next section.
+    // Set "set_axes_component_position_flag" and/or "set_axes_component_velocity_flag" to "True"
+    // if manual limits have to be applied to the components plots, set "False" otherwise.
+    // Set "set_axes_magnitude_position_flag" and/or "set_axes_magnitude_velocity_flag" to "True"
+    // if manual limits have to be applied to the magnitude plots, set "False" otherwise
+    "set_axes_position_component_flag"  : "",
+    "set_axes_velocity_component_flag"  : "",
+    "set_axes_position_magnitude_flag"  : "",
+    "set_axes_velocity_magnitude_flag"  : "",
+
+    // Set axes limit for the position and velocity error plots (magnitude and/or component)
     // Format: [xmin, xmax, ymin, ymax]
     // Auto sizing feature for the axes will be used if all the fields
     // inside the square bracket are made zero.
-    "set_axes_position"         : [,,,],
-    "set_axes_velocity"         : [,,,],
+    "set_axes_position_component"       : [,,,],
+    "set_axes_velocity_component"       : [,,,],
+    "set_axes_position_magnitude"       : [,,,],
+    "set_axes_velocity_magnitude"       : [,,,],
 
     // Characteristics for figures.
-    "figure_dpi"                : 300,
-    "tick_label_size"           : 4,
-    "axis_label_size"           : 10,
-    "colormap"                  : "jet"
+    "figure_dpi"                        : 300,
+    "tick_label_size"                   : 4,
+    "axis_label_size"                   : 10,
+    "colormap"                          : "jet"
 }

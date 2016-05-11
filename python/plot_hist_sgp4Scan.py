@@ -183,27 +183,29 @@ def plotComponents( errorX, errorY, errorZ,                                     
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle )
 
-	if flag == True:
-		xAxesLowerLimit = config['set_axes_position'][ 0 ]
-		xAxesUpperLimit = config['set_axes_position'][ 1 ]
-		yAxesLowerLimit = config['set_axes_position'][ 2 ]
-		yAxesUpperLimit = config['set_axes_position'][ 3 ]
-	else:
-		xAxesLowerLimit = config['set_axes_velocity'][ 0 ]
-		xAxesUpperLimit = config['set_axes_velocity'][ 1 ]
-		yAxesLowerLimit = config['set_axes_velocity'][ 2 ]
-		yAxesUpperLimit = config['set_axes_velocity'][ 3 ]
+	if flag == True and config['set_axes_position_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_position_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
+		print "Using user defined axes limits for position component plot..."
+		print ""
+		plt.axis([xAxesLowerLimit,                                           		  			  \
+				  xAxesUpperLimit,                                          		  			  \
+			      yAxesLowerLimit,                                          		  			  \
+				  yAxesUpperLimit])
 
-	if xAxesLowerLimit != 0                                                      				  \
-		or xAxesUpperLimit != 0                                                    				  \
-			or yAxesLowerLimit != 0                                                  			  \
-				or yAxesUpperLimit != 0:
-					print "Using user defined axes limits"
-					print ""
-					plt.axis([xAxesLowerLimit,                                           		  \
-							  xAxesUpperLimit,                                          		  \
-						      yAxesLowerLimit,                                          		  \
-							  yAxesUpperLimit])
+	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_velocity_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_velocity_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
+		print "Using user defined axes limits for velocity component plot..."
+		print ""
+		plt.axis([xAxesLowerLimit,                                           		  			  \
+				  xAxesUpperLimit,                                          		  			  \
+			      yAxesLowerLimit,                                          		  			  \
+				  yAxesUpperLimit])
 
 	xLegend = mlines.Line2D( [], [], color=xcolor, label=xlegend )
 	yLegend = mlines.Line2D( [], [], color=ycolor, label=ylegend )
@@ -268,29 +270,29 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle )
 
-	if flag == True:
-		xAxesLowerLimit = config['set_axes_position'][ 0 ]
-		xAxesUpperLimit = config['set_axes_position'][ 1 ]
-		yAxesLowerLimit = config['set_axes_position'][ 2 ]
-		yAxesUpperLimit = config['set_axes_position'][ 3 ]
-	else:
-		xAxesLowerLimit = config['set_axes_velocity'][ 0 ]
-		xAxesUpperLimit = config['set_axes_velocity'][ 1 ]
-		yAxesLowerLimit = config['set_axes_velocity'][ 2 ]
-		yAxesUpperLimit = config['set_axes_velocity'][ 3 ]
-
 	xmin, xmax, ymin, ymax = ax.axis('auto')
 	ax.set_xlim( xmin, xmax )
 	ax.set_ylim( ymin, ymax )
 
-	if xAxesLowerLimit != 0                                                                       \
-		or xAxesUpperLimit != 0                                                                   \
-			or yAxesLowerLimit != 0                                                               \
-				or yAxesUpperLimit != 0:
-					print "Using user defined axes limits"
-					print ""
-					ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
-					ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+	if flag == True and config['set_axes_position_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_position_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
+		print "Using user defined axes limits for position component plot..."
+		print ""
+		ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
+		ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_velocity_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_velocity_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
+		print "Using user defined axes limits for velocity component plot..."
+		print ""
+		ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
+		ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
 
 	plt.legend( )
 	plt.grid( True )
@@ -405,16 +407,30 @@ for errorTypeIndex in range( len( errorType ) ):
 		n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',                  \
 									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
 
-		if xAxesLowerLimit != 0                                                      			  \
-			or xAxesUpperLimit != 0                                                    			  \
-				or yAxesLowerLimit != 0                                                  		  \
-					or yAxesUpperLimit != 0:
-						print "Using user defined axes limits"
-						print ""
-						plt.axis([xAxesLowerLimit,                                           	  \
-								  xAxesUpperLimit,                                          	  \
-							      yAxesLowerLimit,                                          	  \
-								  yAxesUpperLimit])
+		if errorType[ errorTypeIndex ] == 'arrival_position':
+			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_position_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_position_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_position_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_position_magnitude'][ 3 ]
+				print "Using user defined axes limits for position magnitude plot..."
+				print ""
+				plt.axis([xAxesLowerLimit,                                           		  	  \
+						  xAxesUpperLimit,                                          		  	  \
+					      yAxesLowerLimit,                                          		  	  \
+						  yAxesUpperLimit])
+		else:
+			if config[ 'set_axes_velocity_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_velocity_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_velocity_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_velocity_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_velocity_magnitude'][ 3 ]
+				print "Using user defined axes limits for velocity magnitude plot..."
+				print ""
+				plt.axis([xAxesLowerLimit,                                           		  	  \
+						  xAxesUpperLimit,                                          		  	  \
+					      yAxesLowerLimit,                                          		  	  \
+						  yAxesUpperLimit])
 
 		j2Legend = mlines.Line2D( [], [], color=j2CurveColor, label='J2' )
 		magnitudeLegend = mpatches.Patch( color=figureColor, label='Magnitude' )
@@ -425,16 +441,30 @@ for errorTypeIndex in range( len( errorType ) ):
 		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False, 					  \
 									 facecolor=figureColor, alpha=1, label='Magnitude' )
 
-		if xAxesLowerLimit != 0                                                      			  \
-			or xAxesUpperLimit != 0                                                    			  \
-				or yAxesLowerLimit != 0                                                  		  \
-					or yAxesUpperLimit != 0:
-						print "Using user defined axes limits"
-						print ""
-						plt.axis([xAxesLowerLimit,                                           	  \
-								  xAxesUpperLimit,                                          	  \
-							      yAxesLowerLimit,                                          	  \
-								  yAxesUpperLimit])
+		if errorType[ errorTypeIndex ] == 'arrival_position':
+			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_position_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_position_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_position_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_position_magnitude'][ 3 ]
+				print "Using user defined axes limits for position magnitude plot..."
+				print ""
+				plt.axis([xAxesLowerLimit,                                           		  	  \
+						  xAxesUpperLimit,                                          		  	  \
+					      yAxesLowerLimit,                                          		  	  \
+						  yAxesUpperLimit])
+		else:
+			if config[ 'set_axes_velocity_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_velocity_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_velocity_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_velocity_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_velocity_magnitude'][ 3 ]
+				print "Using user defined axes limits for velocity magnitude plot..."
+				print ""
+				plt.axis([xAxesLowerLimit,                                           		  	  \
+						  xAxesUpperLimit,                                          		  	  \
+					      yAxesLowerLimit,                                          		  	  \
+						  yAxesUpperLimit])
 
 		# plt.legend( )
 
