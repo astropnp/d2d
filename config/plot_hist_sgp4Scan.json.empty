@@ -57,12 +57,19 @@
     "set_axes_position_magnitude_flag"  : "",
     "set_axes_velocity_magnitude_flag"  : "",
 
-    // Set axes limit for the position and velocity error plots (magnitude and/or component)
+    // Set axes limit for the position and velocity error plots (component)
     // Format: [xmin, xmax, ymin, ymax]
     // Auto sizing feature for the axes will be used if all the fields
     // inside the square bracket are made zero.
     "set_axes_position_component"       : [,,,],
     "set_axes_velocity_component"       : [,,,],
+
+    // Set axes limit for the position and velocity error plots (magnitude)
+    // Format: [xmin, xmax, ymin, ymax]
+    // Auto sizing feature for the axes will be used if all the fields
+    // inside the square bracket are made zero.
+    // Leave ymin and ymax fields as zero if only the x axes has to be set manually (The Y limits
+    // will then be set automatically)
     "set_axes_position_magnitude"       : [,,,],
     "set_axes_velocity_magnitude"       : [,,,],
 

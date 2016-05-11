@@ -176,10 +176,6 @@ def plotComponents( errorX, errorY, errorZ,                                     
 	n, bins, patches = plt.hist( errorZ, bins=200, histtype='step', normed=False,                 \
 								 color=zcolor, alpha=1, label=zlegend, log=False )
 
-	# Figure properties
-	plt.xlabel( xAxisLabel )
-	plt.ylabel( yAxisLabel )
-
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle )
 
@@ -206,6 +202,10 @@ def plotComponents( errorX, errorY, errorZ,                                     
 				  xAxesUpperLimit,                                          		  			  \
 			      yAxesLowerLimit,                                          		  			  \
 				  yAxesUpperLimit])
+
+	# Figure properties
+	plt.xlabel( xAxisLabel )
+	plt.ylabel( yAxisLabel )
 
 	xLegend = mlines.Line2D( [], [], color=xcolor, label=xlegend )
 	yLegend = mlines.Line2D( [], [], color=ycolor, label=ylegend )
@@ -257,22 +257,12 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 								 linestyle='solid', linewidth=2, color=zcolor, label=zlegend,     \
 								 marker='*', markersize=6, markerfacecolor=zcolor )
 
+
 	markerFigure = plt.figure( )
 	ax = markerFigure.add_subplot( 1, 1, 1 )
 	ax.add_line( xMarkerLine )
 	ax.add_line( yMarkerLine )
 	ax.add_line( zMarkerLine )
-
-	# Figure properties
-	plt.xlabel( xAxisLabel )
-	plt.ylabel( yAxisLabel )
-
-	if config[ 'add_title' ] == 'True':
-			plt.title( plotTitle )
-
-	xmin, xmax, ymin, ymax = ax.axis('auto')
-	ax.set_xlim( xmin, xmax )
-	ax.set_ylim( ymin, ymax )
 
 	if flag == True and config['set_axes_position_component_flag'] == 'True':
 		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
@@ -293,6 +283,19 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 		print ""
 		ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
 		ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if config['set_axes_position_component_flag'] == 'False' 									  \
+		and config['set_axes_velocity_component_flag'] == 'False':
+			xmin, xmax, ymin, ymax = ax.axis('auto')
+			ax.set_xlim( xmin, xmax )
+			ax.set_ylim( ymin, ymax )
+
+	# Figure properties
+	plt.xlabel( xAxisLabel )
+	plt.ylabel( yAxisLabel )
+
+	if config[ 'add_title' ] == 'True':
+			plt.title( plotTitle )
 
 	plt.legend( )
 	plt.grid( True )
@@ -402,10 +405,6 @@ for errorTypeIndex in range( len( errorType ) ):
 			j2CurveColor = '1'
 
 	if config['add_j2'] == "True":
-		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False,                       \
-									 facecolor=figureColor, alpha=1, label='Magnitude' )
-		n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',                  \
-									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
 
 		if errorType[ errorTypeIndex ] == 'arrival_position':
 			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
@@ -431,6 +430,11 @@ for errorTypeIndex in range( len( errorType ) ):
 						  xAxesUpperLimit,                                          		  	  \
 					      yAxesLowerLimit,                                          		  	  \
 						  yAxesUpperLimit])
+
+		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False,                       \
+									 facecolor=figureColor, alpha=1, label='Magnitude' )
+		n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',                  \
+									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
 
 		j2Legend = mlines.Line2D( [], [], color=j2CurveColor, label='J2' )
 		magnitudeLegend = mpatches.Patch( color=figureColor, label='Magnitude' )
@@ -438,9 +442,6 @@ for errorTypeIndex in range( len( errorType ) ):
 		labels = [ line.get_label( ) for line in lines ]
 		plt.legend( lines, labels )
 	else:
-		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False, 					  \
-									 facecolor=figureColor, alpha=1, label='Magnitude' )
-
 		if errorType[ errorTypeIndex ] == 'arrival_position':
 			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
 				xAxesLowerLimit = config['set_axes_position_magnitude'][ 0 ]
@@ -449,10 +450,18 @@ for errorTypeIndex in range( len( errorType ) ):
 				yAxesUpperLimit = config['set_axes_position_magnitude'][ 3 ]
 				print "Using user defined axes limits for position magnitude plot..."
 				print ""
-				plt.axis([xAxesLowerLimit,                                           		  	  \
-						  xAxesUpperLimit,                                          		  	  \
-					      yAxesLowerLimit,                                          		  	  \
-						  yAxesUpperLimit])
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				print "Using auto axes limits for position magnitude plot..."
+				print ""
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
 		else:
 			if config[ 'set_axes_velocity_magnitude_flag' ] == 'True':
 				xAxesLowerLimit = config['set_axes_velocity_magnitude'][ 0 ]
@@ -461,11 +470,18 @@ for errorTypeIndex in range( len( errorType ) ):
 				yAxesUpperLimit = config['set_axes_velocity_magnitude'][ 3 ]
 				print "Using user defined axes limits for velocity magnitude plot..."
 				print ""
-				plt.axis([xAxesLowerLimit,                                           		  	  \
-						  xAxesUpperLimit,                                          		  	  \
-					      yAxesLowerLimit,                                          		  	  \
-						  yAxesUpperLimit])
-
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				print "Using auto axes limits for velocity magnitude plot..."
+				print ""
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
 		# plt.legend( )
 
 	# Select appropriate unit and title for the error type
