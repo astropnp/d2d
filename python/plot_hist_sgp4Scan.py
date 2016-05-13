@@ -260,34 +260,6 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 						   xAxisLabel, yAxisLabel, plotTitle,           						  \
 						   flag ):
 
-	xDataHist, xBinEdges = np.histogram( errorX, bins=50, normed=False )
-	xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
-
-	yDataHist, yBinEdges = np.histogram( errorY, bins=50, normed=False )
-	yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
-
-	zDataHist, zBinEdges = np.histogram( errorZ, bins=50, normed=False )
-	zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
-
-	xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=xcolor, label=xlegend,     \
-								 marker='s', markersize=6, markerfacecolor=xcolor )
-
-	yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=ycolor, label=ylegend,     \
-								 marker='v', markersize=6, markerfacecolor=ycolor )
-
-	zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=zcolor, label=zlegend,     \
-								 marker='*', markersize=6, markerfacecolor=zcolor )
-
-
-	markerFigure = plt.figure( )
-	ax = markerFigure.add_subplot( 1, 1, 1 )
-	ax.add_line( xMarkerLine )
-	ax.add_line( yMarkerLine )
-	ax.add_line( zMarkerLine )
-
 	if flag == True and config['set_axes_position_component_flag'] == 'True':
 		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
 		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
@@ -295,8 +267,44 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
 		print "Using user defined axes limits for position component plot..."
 		print ""
-		ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
-		ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+		xDataHist, xBinEdges = np.histogram( errorX, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+
+		yDataHist, yBinEdges = np.histogram( errorY, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+
+		zDataHist, zBinEdges = np.histogram( errorZ, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+
+		xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=xcolor, label=xlegend,     	 					  	  \
+									 marker='s', markersize=6, markerfacecolor=xcolor )
+
+		yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   	  \
+									 linestyle='solid', linewidth=2, 						  	  \
+									 color=ycolor, label=ylegend,     					      	  \
+									 marker='v', markersize=6, markerfacecolor=ycolor )
+
+		zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=zcolor, label=zlegend,     						  	  \
+									 marker='*', markersize=6, markerfacecolor=zcolor )
+
+
+		markerFigure = plt.figure( )
+		ax = markerFigure.add_subplot( 1, 1, 1 )
+		ax.add_line( xMarkerLine )
+		ax.add_line( yMarkerLine )
+		ax.add_line( zMarkerLine )
+		xmin, xmax, ymin, ymax = ax.axis('auto')
+		ax.set_xlim( xmin, xmax )
+		ax.set_ylim( ymin, ymax )
+		if yAxesUpperLimit != 0:
+			ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
 
 	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
 		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
@@ -305,11 +313,77 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
 		print "Using user defined axes limits for velocity component plot..."
 		print ""
-		ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
-		ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+		xDataHist, xBinEdges = np.histogram( errorX, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+
+		yDataHist, yBinEdges = np.histogram( errorY, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+
+		zDataHist, zBinEdges = np.histogram( errorZ, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False )
+		zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+
+		xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=xcolor, label=xlegend,     	 					  	  \
+									 marker='s', markersize=6, markerfacecolor=xcolor )
+
+		yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   	  \
+									 linestyle='solid', linewidth=2, 						  	  \
+									 color=ycolor, label=ylegend,     					      	  \
+									 marker='v', markersize=6, markerfacecolor=ycolor )
+
+		zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=zcolor, label=zlegend,     						  	  \
+									 marker='*', markersize=6, markerfacecolor=zcolor )
+
+
+		markerFigure = plt.figure( )
+		ax = markerFigure.add_subplot( 1, 1, 1 )
+		ax.add_line( xMarkerLine )
+		ax.add_line( yMarkerLine )
+		ax.add_line( zMarkerLine )
+		xmin, xmax, ymin, ymax = ax.axis('auto')
+		ax.set_xlim( xmin, xmax )
+		ax.set_ylim( ymin, ymax )
+		if yAxesUpperLimit != 0:
+			ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
 
 	if config['set_axes_position_component_flag'] == 'False' 									  \
 		and config['set_axes_velocity_component_flag'] == 'False':
+			xDataHist, xBinEdges = np.histogram( errorX, bins=50, normed=False )
+			xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+
+			yDataHist, yBinEdges = np.histogram( errorY, bins=50, normed=False )
+			yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+
+			zDataHist, zBinEdges = np.histogram( errorZ, bins=50, normed=False )
+			zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+
+			xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  \
+										 linestyle='solid', linewidth=2,  						  \
+										 color=xcolor, label=xlegend,     	 					  \
+										 marker='s', markersize=6, markerfacecolor=xcolor )
+
+			yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   \
+										 linestyle='solid', linewidth=2, 						  \
+										 color=ycolor, label=ylegend,     					      \
+										 marker='v', markersize=6, markerfacecolor=ycolor )
+
+			zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   \
+										 linestyle='solid', linewidth=2,  						  \
+										 color=zcolor, label=zlegend,     						  \
+										 marker='*', markersize=6, markerfacecolor=zcolor )
+
+
+			markerFigure = plt.figure( )
+			ax = markerFigure.add_subplot( 1, 1, 1 )
+			ax.add_line( xMarkerLine )
+			ax.add_line( yMarkerLine )
+			ax.add_line( zMarkerLine )
 			xmin, xmax, ymin, ymax = ax.axis('auto')
 			ax.set_xlim( xmin, xmax )
 			ax.set_ylim( ymin, ymax )
