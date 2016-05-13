@@ -169,16 +169,6 @@ def plotComponents( errorX, errorY, errorZ,                                     
 					xAxisLabel, yAxisLabel, plotTitle,                                            \
 					flag ):
 
-	n, bins, patches = plt.hist( errorX, bins=200, histtype='step', normed=False,                 \
-								 color=xcolor, alpha=1, label=xlegend, log=False )
-	n, bins, patches = plt.hist( errorY, bins=200, histtype='step', normed=False,                 \
-								 color=ycolor, alpha=1, label=ylegend, log=False )
-	n, bins, patches = plt.hist( errorZ, bins=200, histtype='step', normed=False,                 \
-								 color=zcolor, alpha=1, label=zlegend, log=False )
-
-	if config[ 'add_title' ] == 'True':
-			plt.title( plotTitle )
-
 	if flag == True and config['set_axes_position_component_flag'] == 'True':
 		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
 		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
@@ -186,10 +176,20 @@ def plotComponents( errorX, errorY, errorZ,                                     
 		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
 		print "Using user defined axes limits for position component plot..."
 		print ""
-		plt.axis([xAxesLowerLimit,                                           		  			  \
-				  xAxesUpperLimit,                                          		  			  \
-			      yAxesLowerLimit,                                          		  			  \
-				  yAxesUpperLimit])
+		n, bins, patches = plt.hist( errorX, bins=200,                          				  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=xcolor, alpha=1, label=xlegend, log=False )
+		n, bins, patches = plt.hist( errorY, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=ycolor, alpha=1, label=ylegend, log=False )
+		n, bins, patches = plt.hist( errorZ, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=zcolor, alpha=1, label=zlegend, log=False )
+		if yAxesUpperLimit != 0:
+			plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
 
 	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
 		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
@@ -198,12 +198,36 @@ def plotComponents( errorX, errorY, errorZ,                                     
 		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
 		print "Using user defined axes limits for velocity component plot..."
 		print ""
-		plt.axis([xAxesLowerLimit,                                           		  			  \
-				  xAxesUpperLimit,                                          		  			  \
-			      yAxesLowerLimit,                                          		  			  \
-				  yAxesUpperLimit])
+		n, bins, patches = plt.hist( errorX, bins=200,                          				  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=xcolor, alpha=1, label=xlegend, log=False )
+		n, bins, patches = plt.hist( errorY, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=ycolor, alpha=1, label=ylegend, log=False )
+		n, bins, patches = plt.hist( errorZ, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False,             				  \
+									 color=zcolor, alpha=1, label=zlegend, log=False )
+		if yAxesUpperLimit != 0:
+			plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if config['set_axes_velocity_component_flag'] == 'False' 								      \
+		and config['set_axes_position_component_flag'] == 'False':
+			n, bins, patches = plt.hist( errorX, bins=200,                          			  \
+										 histtype='step', normed=False,             			  \
+										 color=xcolor, alpha=1, label=xlegend, log=False )
+			n, bins, patches = plt.hist( errorY, bins=200,										  \
+										 histtype='step', normed=False,             			  \
+										 color=ycolor, alpha=1, label=ylegend, log=False )
+			n, bins, patches = plt.hist( errorZ, bins=200,										  \
+										 histtype='step', normed=False,             			  \
+										 color=zcolor, alpha=1, label=zlegend, log=False )
 
 	# Figure properties
+	if config[ 'add_title' ] == 'True':
+			plt.title( plotTitle )
 	plt.xlabel( xAxisLabel )
 	plt.ylabel( yAxisLabel )
 
