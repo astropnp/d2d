@@ -659,7 +659,10 @@ for errorTypeIndex in range( len( errorType ) ):
 
 	# Figure properties
 	plt.xlabel( xAxisLabel )
-	plt.ylabel( 'Frequency' )
+	if config['normed'] == 'True':
+		plt.ylabel( 'Normalized frequency' )
+	else:
+		plt.ylabel( 'Frequency' )
 
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle + " " + 'Magnitude' )
@@ -730,19 +733,24 @@ if config['frame'] == "RTN":
 		velocityErrorY[ i ] = np.inner( gamma[ 1 ][ : ], velocityErrorVectorECI )
 		velocityErrorZ[ i ] = np.inner( gamma[ 2 ][ : ], velocityErrorVectorECI )
 
+	if config['normed'] == 'True':
+		yAxisLabels = "Normalized frequency"
+	else:
+		yAxisLabels = "Frequency"
+
 	print "Plotting position error components defined in RTN frame"
 
 	if config['component_marker'] == "False":
 		plotComponents( positionErrorX, positionErrorY, positionErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"Radial", "Transverse", "Normal",                                         \
-						"Arrival position error [km]", "Frequency", "Position Error Components",  \
+						"Arrival position error [km]", yAxisLabels, "Position Error Components",  \
 						True )
 	else:
 		plotComponentsMarkers( positionErrorX, positionErrorY, positionErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "Radial", "Transverse", "Normal",                                  \
-							   "Arrival position error [km]", "Frequency",                        \
+							   "Arrival position error [km]", yAxisLabels,                        \
 							   "Position Error Components", True )
 
 	# Save figure to file.
@@ -757,13 +765,13 @@ if config['frame'] == "RTN":
 		plotComponents( velocityErrorX, velocityErrorY, velocityErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"Radial", "Transverse", "Normal",                                         \
-						"Arrival velocity error [km/s]", "Frequency", "Velocity Error Components",\
+						"Arrival velocity error [km/s]", yAxisLabels, "Velocity Error Components",\
 						False )
 	else:
 		plotComponentsMarkers( velocityErrorX, velocityErrorY, velocityErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "Radial", "Transverse", "Normal",                                  \
-							   "Arrival velocity error [km/s]", "Frequency",                      \
+							   "Arrival velocity error [km/s]", yAxisLabels,                      \
 							   "Velocity Error Components", False )
 
 	# Save figure to file.
@@ -773,19 +781,25 @@ if config['frame'] == "RTN":
 	plt.close( )
 
 else:
+
+	if config['normed'] == 'True':
+		yAxisLabels = "Normalized frequency"
+	else:
+		yAxisLabels = "Frequency"
+
 	print "Plotting position error components defined in ECI frame"
 
 	if config['component_marker'] == "False":
 		plotComponents( positionErrorX, positionErrorY, positionErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"X Axis", "Y Axis", "Z Axis",                                             \
-						"Arrival position error [km]", "Frequency", "Position Error Components",  \
+						"Arrival position error [km]", yAxisLabels, "Position Error Components",  \
 						True )
 	else:
 		plotComponentsMarkers( positionErrorX, positionErrorY, positionErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "X Axis", "Y Axis", "Z Axis",                                      \
-							   "Arrival position error [km]", "Frequency",                        \
+							   "Arrival position error [km]", yAxisLabels,                        \
 							   "Position Error Components", True )
 
 	# Save figure to file.
@@ -800,13 +814,13 @@ else:
 		plotComponents( velocityErrorX, velocityErrorY, velocityErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"X Axis", "Y Axis", "Z Axis",                                             \
-						"Arrival velocity error [km/s]", "Frequency", "Velocity Error Components",\
+						"Arrival velocity error [km/s]", yAxisLabels, "Velocity Error Components",\
 						False )
 	else:
 		plotComponentsMarkers( velocityErrorX, velocityErrorY, velocityErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "X Axis", "Y Axis", "Z Axis",                                      \
-							   "Arrival velocity error [km/s]", "Frequency",                      \
+							   "Arrival velocity error [km/s]", yAxisLabels,                      \
 							   "Velocity Error Components", False )
 
 	# Save figure to file.
