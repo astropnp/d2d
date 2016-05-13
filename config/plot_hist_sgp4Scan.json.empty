@@ -45,6 +45,11 @@
     // For grayscale, put True otherwise False
     "grayscale"                         : "",
 
+    // Normed histogram plots
+    // Set 'True' if the histogram plots (magnitude and components) have to be normed
+    // Set 'False' otherwise
+    "normed"                            : "",
+
     // Choose plot type for which axes limits have to be set manually.
     // Ensure that if any of the options below is "TRUE", then set non zero limits for the
     // corresponding "set_axes_position" and "set_axes_velocity" parameters in the next section.
