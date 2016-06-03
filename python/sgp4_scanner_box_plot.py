@@ -174,16 +174,17 @@ for errorTypeIndex in range( len( errorType ) ):
   plt.xlabel( 'Orbit regime' )
   plt.ylabel( yLabel )
 
-  for line in plotOut['medians']:
-    # Get position data for the median line (from matplotlib.lines)
-    medianX, medianY = line.get_xydata( )[ 1 ]
+  # # Setting labels for the medians
+  # for line in plotOut['medians']:
+  #   # Get position data for the median line (from matplotlib.lines)
+  #   medianX, medianY = line.get_xydata( )[ 1 ]
 
-    # Overlay median values
-    axes.annotate( '%1.2f' % medianY,                                                             \
-                   xy=( medianX + annotation_xOffset, medianY + annotation_yOffset ),             \
-                   xycoords='data',                                                               \
-                   horizontalalignment='center',                                                  \
-                   verticalalignment='center' )
+  #   # Overlay median values
+  #   axes.annotate( '%1.2f' % medianY,                                                             \
+  #                  xy=( medianX + annotation_xOffset, medianY + annotation_yOffset ),             \
+  #                  xycoords='data',                                                               \
+  #                  horizontalalignment='center',                                                  \
+  #                  verticalalignment='center' )
 
   # Save figure to file.
   plt.savefig( output_path_prefix + config['figure_name'] + ' ' + figureNameLabel
