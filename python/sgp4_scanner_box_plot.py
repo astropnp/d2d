@@ -171,7 +171,7 @@ for errorTypeIndex in range( len( errorType ) ):
   plt.setp( plotOut['medians'], color='black' )
   plt.setp( plotOut['fliers'], color='black' )
   plt.xticks( [1, 2, 3], ['LEO', 'GTO', 'GEO'] )
-  plt.xlabel( 'Orbit regime' )
+  plt.xlabel( 'Orbital regime' )
   plt.ylabel( yLabel )
 
   # # Setting labels for the medians
