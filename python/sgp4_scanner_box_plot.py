@@ -131,7 +131,7 @@ print ""
 for errorTypeIndex in range( len( errorType ) ):
   if errorType[ errorTypeIndex ] == "arrival_position":
     yLabel = 'Position error [km]'
-    figureNameLabel = 'position error'
+    figureNameLabel = 'position_error'
     annotation_xOffset = 0.18
     annotation_yOffset = 0
     print "Plotting position error box plot ..."
@@ -145,7 +145,7 @@ for errorTypeIndex in range( len( errorType ) ):
     magnitudeError.append( geo_magnitudeError )
   else:
     yLabel = 'Velocity error [km/s]'
-    figureNameLabel = 'velocity error'
+    figureNameLabel = 'velocity_error'
     annotation_xOffset = 0.12
     annotation_yOffset = 0.003
     print ""
@@ -162,7 +162,7 @@ for errorTypeIndex in range( len( errorType ) ):
   fig = plt.figure( )
   axes = fig.gca( )
   # plotOut = plt.boxplot( magnitudeError, showfliers=False )
-  plotOut = plt.boxplot( magnitudeError, sym='' )
+  plotOut = plt.boxplot( magnitudeError, sym='+' )
   plt.setp( plotOut['boxes'], color='black' )
   plt.setp( plotOut['whiskers'], color='black' )
   plt.setp( plotOut['medians'], color='black' )
