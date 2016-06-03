@@ -187,7 +187,7 @@ for errorTypeIndex in range( len( errorType ) ):
   #                  verticalalignment='center' )
 
   # Save figure to file.
-  plt.savefig( output_path_prefix + config['figure_name'] + ' ' + figureNameLabel
+  plt.savefig( output_path_prefix + config['figure_name'] + '_' + figureNameLabel
                + config["figure_format"], dpi=300 )
   plt.close( )
 
@@ -208,6 +208,7 @@ if geo_database:
 end_time = time.time( )
 
 # Print elapsed time
+print "------------------------------------------------------------------"
 print "Script time: " + str("{:,g}".format(end_time - start_time)) + "s"
 
 print ""

@@ -13,13 +13,13 @@
     // Do not include a '/' at the end.
     "output_directory"              : "",
 
-    // Set name for the figure
+    // Set name for the figure.
     "figure_name"                   : "",
 
-    // Set output format for the figure (example: ".pdf", ".png")
+    // Set output format for the figure (example: ".pdf", ".png").
     "figure_format"                 : "",
 
-    // Check for GUI
-    // If user machine has a display/GUI then put True, else False
+    // Check for GUI.
+    // If user machine has a display/GUI then put True, else False.
     "display"                       : ""
 }
