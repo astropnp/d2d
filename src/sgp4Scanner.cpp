@@ -117,6 +117,7 @@ void executeSGP4Scanner( const rapidjson::Document& config )
     boost::progress_display showProgress( lambertScannertTableSize );
 
     // Declare counters for different fail cases.
+    int periapsisViolationCounter = 0;
     int virtualTleFailCounter = 0;
     int arrivalEpochPropagationFailCounter = 0;
 
@@ -184,16 +185,16 @@ void executeSGP4Scanner( const rapidjson::Document& config )
             ++showProgress;
             continue;
         }
-
         // Filter out cases where the periapsis of the transfer orbit is less than the Earth's
-        // mean radius.
+        // mean radius plus 100 km (the von Karman line).
         // This is necessary, since the SGP4 propagator only functions outside the Earth's mean
         // radius.
         const double lambertTransferPeriapsis
             = lambertTransferSemiMajorAxis * ( 1.0 - lambertTransferEccentricity );
-        if ( lambertTransferPeriapsis < earthMeanRadius )
+        if ( lambertTransferPeriapsis < (earthMeanRadius + 100.0) )
         {
             ++showProgress;
+            periapsisViolationCounter++;
             continue;
         }
 
@@ -357,16 +358,30 @@ void executeSGP4Scanner( const rapidjson::Document& config )
         = database.execAndGet( totalLambertCasesConsideredSelect.str( ) );
 
     std::cout << std::endl;
-    std::cout << "Total Lambert cases = " << lambertScannertTableSize << std::endl;
-    std::cout << "Total SGP4 cases = " << sgp4ScannertTableSize << std::endl;
+    std::cout << "Summary of SGP4_scanner:" << std::endl;
+
     std::cout << std::endl;
-    std::cout << "Number of Lambert cases considered with the transfer deltaV cut-off = "
+    std::cout << "Number of Lambert cases in database = " << lambertScannertTableSize << std::endl;
+    std::cout << "Number of Lambert cases considered with" << std::endl;
+    std::cout << "  the transfer deltaV cut-off (" << input.transferDeltaVCutoff << " km/s) = "
               << totalLambertCasesConsidered << std::endl;
-    std::cout << "Number of virtual TLE convergence fail cases = "
-              << virtualTleFailCounter << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Number of transfer orbits violating periapsis constraint = "
+              << periapsisViolationCounter << std::endl;
+    std::cout << "Number SGP4 cases in database = " << sgp4ScannertTableSize << std::endl;
+    std::cout << std::endl;
+
     std::cout << "Number of arrival epoch propagation fail cases = "
               << arrivalEpochPropagationFailCounter << std::endl;
+    std::cout << "Number of virtual TLE convergence fail cases = "
+              << virtualTleFailCounter << std::endl;
+    std::cout << std::endl;
 
+    std::cout << "Number successfull SGP4 cases in database = " << sgp4ScannertTableSize
+                                                       - arrivalEpochPropagationFailCounter
+                                                       - virtualTleFailCounter
+                                                    << std::endl;
     // Commit transaction.
     transaction.commit( );
 
