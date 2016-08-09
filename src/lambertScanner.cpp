@@ -14,18 +14,16 @@
 #include <stdexcept>
 #include <vector>
 
-#include <boost/progress.hpp>
-
 #include <libsgp4/Eci.h>
 #include <libsgp4/Globals.h>
 #include <libsgp4/SGP4.h>
-#include <libsgp4/Tle.h>
+
+#include <sqlite3.h>
 
 #include <SML/sml.hpp>
 #include <Astro/astro.hpp>
 
 #include "D2D/lambertScanner.hpp"
-#include "D2D/tools.hpp"
 
 namespace d2d
 {
@@ -60,9 +58,10 @@ void executeLambertScanner( const rapidjson::Document& config )
     // Reset file stream to start of file.
     catalogFile.seekg( 0, std::ios::beg );
 
-    typedef std::vector< std::string > TleStrings;
-    typedef std::vector< Tle > TleObjects;
     TleObjects tleObjects;
+
+    //! List of TLE strings extracted from catalog.
+    typedef std::vector< std::string > TleStrings;
 
     while ( std::getline( catalogFile, catalogLine ) )
     {
@@ -94,19 +93,124 @@ void executeLambertScanner( const rapidjson::Document& config )
     SQLite::Database database( input.databasePath.c_str( ),
                                SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE );
 
-    // Create table for Lambert scanner results in SQLite database.
-    std::cout << "Creating SQLite database table if needed ... " << std::endl;
-    createLambertScannerTable( database );
+    // Create tables for Lambert scanner results in SQLite database.
+    std::cout << "Creating SQLite database tables if needed ... " << std::endl;
+    createLambertScannerTables( database, input.sequenceLength );
     std::cout << "SQLite database set up successfully!" << std::endl;
 
-    // Start SQL transaction.
-    SQLite::Transaction transaction( database );
+    std::cout << "Enumerating sequences and populating database ... " << std::endl;
 
-    // Setup insert query.
-    std::ostringstream lambertScannerTableInsert;
-    lambertScannerTableInsert
-        << "INSERT INTO lambert_scanner_results VALUES ("
-        << "NULL,"
+    // Start SQL transaction to populate table of sequences.
+    SQLite::Transaction sequencesTransaction( database );
+
+    // Set up insert query to add sequences to table in database.
+    std::ostringstream lambertScannerSequencesTableInsert;
+    lambertScannerSequencesTableInsert
+        << "INSERT INTO sequences VALUES ("
+        << ":sequence_id,";
+    for ( int i = 0; i < input.sequenceLength - 1; ++i )
+    {
+        lambertScannerSequencesTableInsert
+            << ":target_" << i << ",";
+    }
+    lambertScannerSequencesTableInsert
+        << ":target_" << input.sequenceLength - 1 << ",";
+    for ( int i = 0; i < input.sequenceLength - 2; ++i )
+    {
+        lambertScannerSequencesTableInsert
+            << "0,";
+    }
+    lambertScannerSequencesTableInsert
+        << "0,"
+        << "0.0,"
+        << "0.0,"
+        << "0.0,"
+        << "0.0"
+        << ");";
+
+    SQLite::Statement sequencesQuery( database, lambertScannerSequencesTableInsert.str( ) );
+
+    // Enumerate all sequences for the given pool of TLE objects using a recursive function that
+    // generates IDs leg-by-leg.
+    ListOfSequences listOfSequences;
+    Sequence sequence( input.sequenceLength );
+    int currentSequencePosition = 0;
+    int sequenceId = 1;
+
+    recurseSequences( currentSequencePosition, tleObjects, sequence, sequenceId, listOfSequences );
+
+    // Write list of sequences to table in database.
+    for ( ListOfSequences::iterator iteratorSequences = listOfSequences.begin( );
+          iteratorSequences != listOfSequences.end( );
+          ++iteratorSequences )
+    {
+        sequencesQuery.bind( ":sequence_id", iteratorSequences->first );
+
+        for ( unsigned int j = 0; j < sequence.size( ); ++j )
+        {
+            std::ostringstream sequencesQueryTargetNumber;
+            sequencesQueryTargetNumber << ":target_" << j;
+            sequencesQuery.bind(
+                sequencesQueryTargetNumber.str( ),
+                static_cast< int >( iteratorSequences->second[ j ].NoradNumber( ) ) );
+        }
+
+        // Execute insert query.
+        sequencesQuery.executeStep( );
+
+        // Reset SQL insert query.
+        sequencesQuery.reset( );
+    }
+
+    // Commit sequences transaction.
+    sequencesTransaction.commit( );
+
+    std::cout << "Sequences successfully enumerated!" << std::endl;
+
+    std::cout << "Pre-computing all departure-arrival epochs for each leg ... " << std::endl;
+
+    // Pre-compute all departure and arrival epochs for each leg.
+    const AllEpochs allEpochs = computeAllPorkChopPlotEpochs( input.sequenceLength,
+                                                              input.stayTime,
+                                                              input.departureEpochInitial,
+                                                              input.departureEpochSteps,
+                                                              input.departureEpochStepSize,
+                                                              input.timeOfFlightMinimum,
+                                                              input.timeOfFlightSteps,
+                                                              input.timeOfFlightStepSize );
+
+    std::cout << "All departure-arrival epochs successfully computed!" << std::endl;
+
+    std::cout << "Computing all pork-chop plot transfers for each leg ... " << std::endl;
+
+    // Compute pork-chop sets for 1-to-1 transfers on a leg-by-leg basis, by stepping through a
+    // given sequence using recursion.
+    currentSequencePosition = 0;
+
+    // Compute total set of all Lambert pork-chop data.
+    AllLambertPorkChopPlots allPorkChopPlots;
+    int transferId = 1;
+    recurseLambertTransfers( currentSequencePosition,
+                             tleObjects,
+                             allEpochs,
+                             input.isPrograde,
+                             input.revolutionsMaximum,
+                             sequence,
+                             transferId,
+                             allPorkChopPlots );
+
+    std::cout << "All pork-chop plot transfers successfully computed! " << std::endl;
+
+    std::cout << "Populating database with pork-chop plot transfers ... " << std::endl;
+
+    // Start SQL transaction to populate database with computed transfers.
+    SQLite::Transaction transfersTransaction( database );
+
+    // Set up insert query to add transfer data to table in database.
+    std::ostringstream lambertScannerTransfersTableInsert;
+    lambertScannerTransfersTableInsert
+        << "INSERT INTO lambert_scanner_transfers VALUES ("
+        << ":transfer_id,"
         << ":departure_object_id,"
         << ":arrival_object_id,"
         << ":departure_epoch,"
@@ -149,241 +253,274 @@ void executeLambertScanner( const rapidjson::Document& config )
         << ":arrival_delta_v_x,"
         << ":arrival_delta_v_y,"
         << ":arrival_delta_v_z,"
-        << ":transfer_delta_v"
+        << ":transfer_delta_v,"
+        << ":leg_id"
         << ");";
 
-    SQLite::Statement query( database, lambertScannerTableInsert.str( ) );
+    SQLite::Statement transfersQuery( database, lambertScannerTransfersTableInsert.str( ) );
 
-    std::cout << "Computing Lambert transfers and populating database ... " << std::endl;
-
-    // Loop over TLE objects and compute transfers based on Lambert targeter across time-of-flight
-    // grid.
-    boost::progress_display showProgress( tleObjects.size( ) );
-
-    // Loop over all departure objects.
-    for ( unsigned int i = 0; i < tleObjects.size( ); i++ )
+    for ( AllLambertPorkChopPlots::iterator it = allPorkChopPlots.begin( );
+          it != allPorkChopPlots.end( );
+          it++ )
     {
-        // Compute departure state.
-        Tle departureObject = tleObjects[ i ];
-        SGP4 sgp4Departure( departureObject );
+        const PorkChopPlotId porkChopId = it->first;
+        const LambertPorkChopPlot porkChopPlot = it->second;
 
-        DateTime departureEpoch = input.departureEpochInitial;
-        if ( input.departureEpochInitial == DateTime( ) )
+        for ( unsigned int i = 0; i < porkChopPlot.size( ); ++i )
         {
-            departureEpoch = departureObject.Epoch( );
+            // Bind values to SQL insert query.
+            transfersQuery.bind( ":transfer_id",          porkChopPlot[ i ].transferId );
+            transfersQuery.bind( ":departure_object_id",  porkChopId.departureObjectId );
+            transfersQuery.bind( ":arrival_object_id",    porkChopId.arrivalObjectId );
+            transfersQuery.bind( ":departure_epoch",
+                porkChopPlot[ i ].departureEpoch.ToJulian( ) );
+            transfersQuery.bind( ":time_of_flight",       porkChopPlot[ i ].timeOfFlight );
+            transfersQuery.bind( ":revolutions",          porkChopPlot[ i ].revolutions );
+            transfersQuery.bind( ":prograde",             porkChopPlot[ i ].isPrograde );
+            transfersQuery.bind( ":departure_position_x",
+                porkChopPlot[ i ].departureState[ astro::xPositionIndex ] );
+            transfersQuery.bind( ":departure_position_y",
+                porkChopPlot[ i ].departureState[ astro::yPositionIndex ] );
+            transfersQuery.bind( ":departure_position_z",
+                porkChopPlot[ i ].departureState[ astro::zPositionIndex ] );
+            transfersQuery.bind( ":departure_velocity_x",
+                porkChopPlot[ i ].departureState[ astro::xVelocityIndex ] );
+            transfersQuery.bind( ":departure_velocity_y",
+                porkChopPlot[ i ].departureState[ astro::yVelocityIndex ] );
+            transfersQuery.bind( ":departure_velocity_z",
+                porkChopPlot[ i ].departureState[ astro::zVelocityIndex ] );
+            transfersQuery.bind( ":departure_semi_major_axis",
+                porkChopPlot[ i ].departureStateKepler[ astro::semiMajorAxisIndex ] );
+            transfersQuery.bind( ":departure_eccentricity",
+                porkChopPlot[ i ].departureStateKepler[ astro::eccentricityIndex ] );
+            transfersQuery.bind( ":departure_inclination",
+                porkChopPlot[ i ].departureStateKepler[ astro::inclinationIndex ] );
+            transfersQuery.bind( ":departure_argument_of_periapsis",
+                porkChopPlot[ i ].departureStateKepler[ astro::argumentOfPeriapsisIndex ] );
+            transfersQuery.bind( ":departure_longitude_of_ascending_node",
+                porkChopPlot[ i ].departureStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
+            transfersQuery.bind( ":departure_true_anomaly",
+                porkChopPlot[ i ].departureStateKepler[ astro::trueAnomalyIndex ] );
+            transfersQuery.bind( ":arrival_position_x",
+                porkChopPlot[ i ].arrivalState[ astro::xPositionIndex ] );
+            transfersQuery.bind( ":arrival_position_y",
+                porkChopPlot[ i ].arrivalState[ astro::yPositionIndex ] );
+            transfersQuery.bind( ":arrival_position_z",
+                porkChopPlot[ i ].arrivalState[ astro::zPositionIndex ] );
+            transfersQuery.bind( ":arrival_velocity_x",
+                porkChopPlot[ i ].arrivalState[ astro::xVelocityIndex ] );
+            transfersQuery.bind( ":arrival_velocity_y",
+                porkChopPlot[ i ].arrivalState[ astro::yVelocityIndex ] );
+            transfersQuery.bind( ":arrival_velocity_z",
+                porkChopPlot[ i ].arrivalState[ astro::zVelocityIndex ] );
+            transfersQuery.bind( ":arrival_semi_major_axis",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::semiMajorAxisIndex ] );
+            transfersQuery.bind( ":arrival_eccentricity",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::eccentricityIndex ] );
+            transfersQuery.bind( ":arrival_inclination",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::inclinationIndex ] );
+            transfersQuery.bind( ":arrival_argument_of_periapsis",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::argumentOfPeriapsisIndex ] );
+            transfersQuery.bind( ":arrival_longitude_of_ascending_node",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
+            transfersQuery.bind( ":arrival_true_anomaly",
+                porkChopPlot[ i ].arrivalStateKepler[ astro::trueAnomalyIndex ] );
+            transfersQuery.bind( ":transfer_semi_major_axis",
+                porkChopPlot[ i ].transferStateKepler[ astro::semiMajorAxisIndex ] );
+            transfersQuery.bind( ":transfer_eccentricity",
+                porkChopPlot[ i ].transferStateKepler[ astro::eccentricityIndex ] );
+            transfersQuery.bind( ":transfer_inclination",
+                porkChopPlot[ i ].transferStateKepler[ astro::inclinationIndex ] );
+            transfersQuery.bind( ":transfer_argument_of_periapsis",
+                porkChopPlot[ i ].transferStateKepler[ astro::argumentOfPeriapsisIndex ] );
+            transfersQuery.bind( ":transfer_longitude_of_ascending_node",
+                porkChopPlot[ i ].transferStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
+            transfersQuery.bind( ":transfer_true_anomaly",
+                porkChopPlot[ i ].transferStateKepler[ astro::trueAnomalyIndex ] );
+            transfersQuery.bind( ":departure_delta_v_x", porkChopPlot[ i ].departureDeltaV[ 0 ] );
+            transfersQuery.bind( ":departure_delta_v_y", porkChopPlot[ i ].departureDeltaV[ 1 ] );
+            transfersQuery.bind( ":departure_delta_v_z", porkChopPlot[ i ].departureDeltaV[ 2 ] );
+            transfersQuery.bind( ":arrival_delta_v_x",   porkChopPlot[ i ].arrivalDeltaV[ 0 ] );
+            transfersQuery.bind( ":arrival_delta_v_y",   porkChopPlot[ i ].arrivalDeltaV[ 1 ] );
+            transfersQuery.bind( ":arrival_delta_v_z",   porkChopPlot[ i ].arrivalDeltaV[ 2 ] );
+            transfersQuery.bind( ":transfer_delta_v",    porkChopPlot[ i ].transferDeltaV );
+            transfersQuery.bind( ":leg_id",              porkChopId.legId );
+
+            // Execute insert query.
+            transfersQuery.executeStep( );
+
+            // Reset SQL insert query.
+            transfersQuery.reset( );
         }
+    }
 
-        // Loop over arrival objects.
-        for ( unsigned int j = 0; j < tleObjects.size( ); j++ )
+    // Commit transfers transaction.
+    transfersTransaction.commit( );
+
+    std::cout << "Database successfully populated with pork-chop plot transfers! " << std::endl;
+
+    std::cout << "Computing all multi-leg transfers for each sequence ..." << std::endl;
+
+    AllMultiLegTransfers allMultiLegTransfers;
+    ListOfMultiLegTransfers listOfMultiLegTransfers;
+    MultiLegTransferData multiLegTransferData;
+
+    // Loop over all sequences and call recursive function to compute multi-leg transfers.
+    for ( ListOfSequences::iterator iteratorSequences = listOfSequences.begin( );
+          iteratorSequences != listOfSequences.end( );
+          iteratorSequences++ )
+    {
+        recurseMuiltiLegLambertTransfers( 0,
+                                          iteratorSequences->second,
+                                          allPorkChopPlots,
+                                          input.stayTime,
+                                          listOfMultiLegTransfers,
+                                          multiLegTransferData  );
+
+        allMultiLegTransfers[ iteratorSequences->first ] = listOfMultiLegTransfers;
+
+        listOfMultiLegTransfers.clear( );
+        multiLegTransferData.clear( );
+    }
+
+    std::cout << "All multi-leg transfers successfully computed!" << std::endl;
+
+    std::cout << "Populating the database with all multi-leg transfers ..." << std::endl;
+
+    // Start SQL transaction to populate database with computed multi-leg transfers.
+    SQLite::Transaction multiLegTransfersTransaction( database );
+
+    // Set up insert query to add multi-leg transfer data to table in database.
+    std::ostringstream lambertScannerMultiLegTransfersTableInsert;
+    lambertScannerMultiLegTransfersTableInsert
+        << "INSERT INTO lambert_scanner_multi_leg_transfers VALUES ("
+        << "NULL,"
+        << ":sequence_id,";
+    for ( int i = 0; i < input.sequenceLength - 1; ++i )
+    {
+
+        lambertScannerMultiLegTransfersTableInsert
+            << ":transfer_id_" << i + 1 << ",";
+    }
+    lambertScannerMultiLegTransfersTableInsert
+        << ":launch_epoch,"
+        << ":mission_duration,"
+        << ":total_transfer_delta_v"
+        << ");";
+
+    SQLite::Statement multiLegTransferQuery( database,
+                                             lambertScannerMultiLegTransfersTableInsert.str( ) );
+
+    for ( AllMultiLegTransfers::iterator iteratorMultiLegTransfers = allMultiLegTransfers.begin( );
+          iteratorMultiLegTransfers != allMultiLegTransfers.end( );
+          iteratorMultiLegTransfers++ )
+    {
+        const int sequenceId = iteratorMultiLegTransfers->first;
+        const ListOfMultiLegTransfers listOfMultiLegTransfers = iteratorMultiLegTransfers->second;
+
+        for ( unsigned int i = 0; i < listOfMultiLegTransfers.size( ); ++i )
         {
-            // Skip the case of the departure and arrival objects being the same.
-            if ( i == j )
+
+            // Bind values to SQL insert query.
+            multiLegTransferQuery.bind( ":sequence_id",            sequenceId );
+            multiLegTransferQuery.bind(
+                ":launch_epoch", listOfMultiLegTransfers[ i ].launchEpoch.ToJulian( ) );
+
+            double missionDuration = 0.0;
+            double totalTransferDeltaV = 0.0;
+
+            for ( int j = 0; j < input.sequenceLength - 1; ++j )
             {
-                continue;
+                std::ostringstream multiLegTransfersQueryTransferNumber;
+                multiLegTransfersQueryTransferNumber << ":transfer_id_" << j + 1;
+                multiLegTransferQuery.bind(
+                    multiLegTransfersQueryTransferNumber.str( ),
+                    listOfMultiLegTransfers[ i ].multiLegTransferData[ j ].transferId );
+
+                missionDuration
+                    += listOfMultiLegTransfers[ i ].multiLegTransferData[ j ].timeOfFlight;
+                totalTransferDeltaV
+                    += listOfMultiLegTransfers[ i ].multiLegTransferData[ j ].transferDeltaV;
             }
 
-            Tle arrivalObject = tleObjects[ j ];
-            SGP4 sgp4Arrival( arrivalObject );
-            const int arrivalObjectId = static_cast< int >( arrivalObject.NoradNumber( ) );
+            multiLegTransferQuery.bind( ":mission_duration",       missionDuration );
+            multiLegTransferQuery.bind( ":total_transfer_delta_v", totalTransferDeltaV );
 
-            // Loop over departure epoch grid.
-            for ( int m = 0; m < input.departureEpochSteps; ++m )
-            {
-                DateTime departureEpoch = input.departureEpochInitial;
-                departureEpoch = departureEpoch.AddSeconds( input.departureEpochStepSize * m );
-                
-                const Eci tleDepartureState = sgp4Departure.FindPosition( departureEpoch );
-                const Vector6 departureState = getStateVector( tleDepartureState );
+            // Execute insert query.
+            multiLegTransferQuery.executeStep( );
 
-                Vector3 departurePosition;
-                std::copy( departureState.begin( ),
-                           departureState.begin( ) + 3,
-                           departurePosition.begin( ) );
-
-                Vector3 departureVelocity;
-                std::copy( departureState.begin( ) + 3,
-                           departureState.end( ),
-                           departureVelocity.begin( ) );
-
-                const Vector6 departureStateKepler
-                    = astro::convertCartesianToKeplerianElements( departureState,
-                                                                  earthGravitationalParameter );
-                const int departureObjectId = static_cast< int >( departureObject.NoradNumber( ) );
-            
-                // Loop over time-of-flight grid.
-                for ( int k = 0; k < input.timeOfFlightSteps; k++ )
-                {
-                    const double timeOfFlight
-                        = input.timeOfFlightMinimum + k * input.timeOfFlightStepSize;
-
-                    const DateTime arrivalEpoch = departureEpoch.AddSeconds( timeOfFlight );
-                    const Eci tleArrivalState   = sgp4Arrival.FindPosition( arrivalEpoch );
-                    const Vector6 arrivalState  = getStateVector( tleArrivalState );
-
-                    Vector3 arrivalPosition;
-                    std::copy( arrivalState.begin( ),
-                               arrivalState.begin( ) + 3,
-                               arrivalPosition.begin( ) );
-
-                    Vector3 arrivalVelocity;
-                    std::copy( arrivalState.begin( ) + 3,
-                               arrivalState.end( ),
-                               arrivalVelocity.begin( ) );
-                    const Vector6 arrivalStateKepler
-                        = astro::convertCartesianToKeplerianElements( arrivalState,
-                                                                      earthGravitationalParameter );
-
-                    kep_toolbox::lambert_problem targeter( departurePosition,
-                                                           arrivalPosition,
-                                                           timeOfFlight,
-                                                           earthGravitationalParameter,
-                                                           !input.isPrograde,
-                                                           input.revolutionsMaximum );
-
-                    const int numberOfSolutions = targeter.get_v1( ).size( );
-
-                    // Compute Delta-Vs for transfer and determine index of lowest.
-                    typedef std::vector< Vector3 > VelocityList;
-                    VelocityList departureDeltaVs( numberOfSolutions );
-                    VelocityList arrivalDeltaVs( numberOfSolutions );
-
-                    typedef std::vector< double > TransferDeltaVList;
-                    TransferDeltaVList transferDeltaVs( numberOfSolutions );
-
-                    for ( int i = 0; i < numberOfSolutions; i++ )
-                    {
-                        // Compute Delta-V for transfer.
-                        const Vector3 transferDepartureVelocity = targeter.get_v1( )[ i ];
-                        const Vector3 transferArrivalVelocity = targeter.get_v2( )[ i ];
-
-                        departureDeltaVs[ i ] = sml::add( transferDepartureVelocity,
-                                                          sml::multiply( departureVelocity, -1.0 ) );
-                        arrivalDeltaVs[ i ]   = sml::add( arrivalVelocity,
-                                                          sml::multiply( transferArrivalVelocity, -1.0 ) );
-
-                        transferDeltaVs[ i ]
-                            = sml::norm< double >( departureDeltaVs[ i ] )
-                                + sml::norm< double >( arrivalDeltaVs[ i ] );
-                    }
-
-                    const TransferDeltaVList::iterator minimumDeltaVIterator
-                        = std::min_element( transferDeltaVs.begin( ), transferDeltaVs.end( ) );
-                    const int minimumDeltaVIndex
-                        = std::distance( transferDeltaVs.begin( ), minimumDeltaVIterator );
-
-                    const int revolutions = std::floor( ( minimumDeltaVIndex + 1 ) / 2 );
-
-                    Vector6 transferState;
-                    std::copy( departurePosition.begin( ),
-                               departurePosition.begin( ) + 3,
-                               transferState.begin( ) );
-                    std::copy( targeter.get_v1( )[ minimumDeltaVIndex ].begin( ),
-                               targeter.get_v1( )[ minimumDeltaVIndex ].begin( ) + 3,
-                               transferState.begin( ) + 3 );
-
-                    const Vector6 transferStateKepler
-                        = astro::convertCartesianToKeplerianElements( transferState,
-                                                                      earthGravitationalParameter );
-
-                    // Bind values to SQL insert query.
-                    query.bind( ":departure_object_id",  departureObjectId );
-                    query.bind( ":arrival_object_id",    arrivalObjectId );
-                    query.bind( ":departure_epoch",      departureEpoch.ToJulian( ) );
-                    query.bind( ":time_of_flight",       timeOfFlight );
-                    query.bind( ":revolutions",          revolutions );
-                    query.bind( ":prograde",             input.isPrograde );
-                    query.bind( ":departure_position_x", departureState[ astro::xPositionIndex ] );
-                    query.bind( ":departure_position_y", departureState[ astro::yPositionIndex ] );
-                    query.bind( ":departure_position_z", departureState[ astro::zPositionIndex ] );
-                    query.bind( ":departure_velocity_x", departureState[ astro::xVelocityIndex ] );
-                    query.bind( ":departure_velocity_y", departureState[ astro::yVelocityIndex ] );
-                    query.bind( ":departure_velocity_z", departureState[ astro::zVelocityIndex ] );
-                    query.bind( ":departure_semi_major_axis",
-                        departureStateKepler[ astro::semiMajorAxisIndex ] );
-                    query.bind( ":departure_eccentricity",
-                        departureStateKepler[ astro::eccentricityIndex ] );
-                    query.bind( ":departure_inclination",
-                        departureStateKepler[ astro::inclinationIndex ] );
-                    query.bind( ":departure_argument_of_periapsis",
-                        departureStateKepler[ astro::argumentOfPeriapsisIndex ] );
-                    query.bind( ":departure_longitude_of_ascending_node",
-                        departureStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
-                    query.bind( ":departure_true_anomaly",
-                        departureStateKepler[ astro::trueAnomalyIndex ] );
-                    query.bind( ":arrival_position_x",  arrivalState[ astro::xPositionIndex ] );
-                    query.bind( ":arrival_position_y",  arrivalState[ astro::yPositionIndex ] );
-                    query.bind( ":arrival_position_z",  arrivalState[ astro::zPositionIndex ] );
-                    query.bind( ":arrival_velocity_x",  arrivalState[ astro::xVelocityIndex ] );
-                    query.bind( ":arrival_velocity_y",  arrivalState[ astro::yVelocityIndex ] );
-                    query.bind( ":arrival_velocity_z",  arrivalState[ astro::zVelocityIndex ] );
-                    query.bind( ":arrival_semi_major_axis",
-                        arrivalStateKepler[ astro::semiMajorAxisIndex ] );
-                    query.bind( ":arrival_eccentricity",
-                        arrivalStateKepler[ astro::eccentricityIndex ] );
-                    query.bind( ":arrival_inclination",
-                        arrivalStateKepler[ astro::inclinationIndex ] );
-                    query.bind( ":arrival_argument_of_periapsis",
-                        arrivalStateKepler[ astro::argumentOfPeriapsisIndex ] );
-                    query.bind( ":arrival_longitude_of_ascending_node",
-                        arrivalStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
-                    query.bind( ":arrival_true_anomaly",
-                        arrivalStateKepler[ astro::trueAnomalyIndex ] );
-                    query.bind( ":transfer_semi_major_axis",
-                        transferStateKepler[ astro::semiMajorAxisIndex ] );
-                    query.bind( ":transfer_eccentricity",
-                        transferStateKepler[ astro::eccentricityIndex ] );
-                    query.bind( ":transfer_inclination",
-                        transferStateKepler[ astro::inclinationIndex ] );
-                    query.bind( ":transfer_argument_of_periapsis",
-                        transferStateKepler[ astro::argumentOfPeriapsisIndex ] );
-                    query.bind( ":transfer_longitude_of_ascending_node",
-                        transferStateKepler[ astro::longitudeOfAscendingNodeIndex ] );
-                    query.bind( ":transfer_true_anomaly",
-                        transferStateKepler[ astro::trueAnomalyIndex ] );
-                    query.bind( ":departure_delta_v_x", departureDeltaVs[ minimumDeltaVIndex ][ 0 ] );
-                    query.bind( ":departure_delta_v_y", departureDeltaVs[ minimumDeltaVIndex ][ 1 ] );
-                    query.bind( ":departure_delta_v_z", departureDeltaVs[ minimumDeltaVIndex ][ 2 ] );
-                    query.bind( ":arrival_delta_v_x",   arrivalDeltaVs[ minimumDeltaVIndex ][ 0 ] );
-                    query.bind( ":arrival_delta_v_y",   arrivalDeltaVs[ minimumDeltaVIndex ][ 1 ] );
-                    query.bind( ":arrival_delta_v_z",   arrivalDeltaVs[ minimumDeltaVIndex ][ 2 ] );
-                    query.bind( ":transfer_delta_v",    *minimumDeltaVIterator );
-
-                    // Execute insert query.
-                    query.executeStep( );
-
-                    // Reset SQL insert query.
-                    query.reset( );
-                }
-            }    
+            // Reset SQL insert query.
+            multiLegTransferQuery.reset( );
         }
-
-        ++showProgress;
     }
 
-    // Commit transaction.
-    transaction.commit( );
+    // Commit multi-leg transfers transaction.
+    multiLegTransfersTransaction.commit( );
 
-    std::cout << std::endl;
-    std::cout << "Database populated successfully!" << std::endl;
-    std::cout << std::endl;
+    std::cout << "Database successfully populated with all multi-leg transfers!" << std::endl;
 
-    // Check if shortlist file should be created; call function to write output.
-    if ( input.shortlistLength > 0 )
+    std::cout << "Update sequences table with best multi-leg transfers ... " << std::endl;
+
+    std::ostringstream bestMultiLegTransfersReplace;
+    bestMultiLegTransfersReplace
+        << "REPLACE INTO sequences "
+        << "SELECT       sequence_id, ";
+    for ( int i = 0; i < input.sequenceLength; ++i )
     {
-        std::cout << "Writing shortlist to file ... " << std::endl;
-        writeTransferShortlist( database, input.shortlistLength, input.shortlistPath );
-        std::cout << "Shortlist file created successfully!" << std::endl;
+        bestMultiLegTransfersReplace
+            << "         target_" << i << ", ";
     }
+    for ( int i = 0; i < input.sequenceLength - 1; ++i )
+    {
+        bestMultiLegTransfersReplace
+            << "         transfer_id_" << i + 1 << "_, ";
+    }
+    bestMultiLegTransfersReplace
+            << "        launch_epoch_, "
+            << "        lambert_delta_v_, "
+            << "        mission_duration_, "
+            << "        atom_transfer_delta_v "
+            << "FROM    (SELECT *  "
+            << "         FROM   sequences "
+            << "         AS     SEQ "
+            << "         JOIN   (SELECT   sequence_id                 AS \"sequence_id_match\", ";
+    for ( int i = 0; i < input.sequenceLength - 1; ++i )
+    {
+        bestMultiLegTransfersReplace
+            << "                          transfer_id_" << i + 1 << " AS transfer_id_"
+                                                                 << i + 1 << "_, ";
+    }
+    bestMultiLegTransfersReplace
+            << "                          launch_epoch                  AS \"launch_epoch_\", "
+            << "                          min(total_transfer_delta_v)   AS \"lambert_delta_v_\", "
+            << "                          mission_duration              AS \"mission_duration_\" "
+            << "                 FROM     lambert_scanner_multi_leg_transfers "
+            << "                 GROUP BY lambert_scanner_multi_leg_transfers.sequence_id) "
+            << "         AS MULTI "
+            << "         ON SEQ.sequence_id = MULTI.sequence_id_match);";
+
+
+    database.exec( bestMultiLegTransfersReplace.str( ).c_str( ) );
+
+    std::cout << "Sequences table successfully updated with best multi-leg transfers!" << std::endl;
+
+    // Write sequences file.
+    std::cout << "Writing best multi-leg transfers for each sequence to file ... " << std::endl;
+    writeSequencesToFile( database, input.sequencesPath, input.sequenceLength );
+    std::cout << "Sequences file created successfully!" << std::endl;
 }
 
 //! Check lambert_scanner input parameters.
 LambertScannerInput checkLambertScannerInput( const rapidjson::Document& config )
 {
-    const std::string catalogPath = find( config, "catalog" )->value.GetString( );
-    std::cout << "Catalog                       " << catalogPath << std::endl;
+    const std::string catalogPath  = find( config, "catalog_path" )->value.GetString( );
+    std::cout << "Catalog path                  " << catalogPath << std::endl;
 
-    const std::string databasePath = find( config, "database" )->value.GetString( );
-    std::cout << "Database                      " << databasePath << std::endl;
+    const std::string databasePath = find( config, "database_path" )->value.GetString( );
+    std::cout << "Database path                 " << databasePath << std::endl;
+
+    const int sequenceLength       = find( config, "sequence_length" )->value.GetInt( );
+    std::cout << "Sequence length               " << sequenceLength << std::endl;
 
     const ConfigIterator departureEpochIterator = find( config, "departure_epoch" );
     std::map< std::string, int > departureEpochElements;
@@ -447,10 +584,10 @@ LambertScannerInput checkLambertScannerInput( const rapidjson::Document& config 
 
     const double timeOfFlightMinimum
         = find( config, "time_of_flight_grid" )->value[ 0 ].GetDouble( );
-    std::cout << "Minimum Time-of-Flight        " << timeOfFlightMinimum << std::endl;
+    std::cout << "Minimum time-of-flight        " << timeOfFlightMinimum << std::endl;
     const double timeOfFlightMaximum
         = find( config, "time_of_flight_grid" )->value[ 1 ].GetDouble( );
-    std::cout << "Maximum Time-of-Flight        " << timeOfFlightMaximum << std::endl;
+    std::cout << "Maximum time-of-flight        " << timeOfFlightMaximum << std::endl;
 
     if ( timeOfFlightMinimum > timeOfFlightMaximum )
     {
@@ -459,7 +596,10 @@ LambertScannerInput checkLambertScannerInput( const rapidjson::Document& config 
 
     const double timeOfFlightSteps
         = find( config, "time_of_flight_grid" )->value[ 2 ].GetDouble( );
-    std::cout << "# Time-of-Flight steps        " << timeOfFlightSteps << std::endl;
+    std::cout << "# Time-of-flight steps        " << timeOfFlightSteps << std::endl;
+
+    const double stayTime = find( config, "stay_time" )->value.GetDouble( );
+    std::cout << "Stay time                     " << stayTime << std::endl;
 
     const bool isPrograde = find( config, "is_prograde" )->value.GetBool( );
     if ( isPrograde )
@@ -474,18 +614,12 @@ LambertScannerInput checkLambertScannerInput( const rapidjson::Document& config 
     const int revolutionsMaximum = find( config, "revolutions_maximum" )->value.GetInt( );
     std::cout << "Maximum revolutions           " << revolutionsMaximum << std::endl;
 
-    const int shortlistLength = find( config, "shortlist" )->value[ 0 ].GetInt( );
-    std::cout << "# of shortlist transfers      " << shortlistLength << std::endl;
-
-    std::string shortlistPath = "";
-    if ( shortlistLength > 0 )
-    {
-        shortlistPath = find( config, "shortlist" )->value[ 1 ].GetString( );
-        std::cout << "Shortlist                     " << shortlistPath << std::endl;
-    }
+    const std::string sequencesPath = find( config, "sequences_path" )->value.GetString( );
+    std::cout << "Sequences path                 " << sequencesPath << std::endl;
 
     return LambertScannerInput( catalogPath,
                                 databasePath,
+                                sequenceLength,
                                 departureEpoch,
                                 departureGridSteps,
                                 departureEpochRange/departureGridSteps,
@@ -493,25 +627,56 @@ LambertScannerInput checkLambertScannerInput( const rapidjson::Document& config 
                                 timeOfFlightMaximum,
                                 timeOfFlightSteps,
                                 ( timeOfFlightMaximum - timeOfFlightMinimum ) / timeOfFlightSteps,
+                                stayTime,
                                 isPrograde,
                                 revolutionsMaximum,
-                                shortlistLength,
-                                shortlistPath );
+                                sequencesPath );
 }
 
-//! Create lambert_scanner table.
-void createLambertScannerTable( SQLite::Database& database )
+//! Create lambert_scanner tables.
+void createLambertScannerTables( SQLite::Database& database, const int sequenceLength )
 {
     // Drop table from database if it exists.
-    database.exec( "DROP TABLE IF EXISTS lambert_scanner_results;" );
+    database.exec( "DROP TABLE IF EXISTS sequences;" );
+    database.exec( "DROP TABLE IF EXISTS lambert_scanner_transfers;" );
+    database.exec( "DROP TABLE IF EXISTS lambert_scanner_multi_leg_transfers;" );
 
-    // Set up SQL command to create table to store lambert_scanner results.
-    std::ostringstream lambertScannerTableCreate;
-    lambertScannerTableCreate
-        << "CREATE TABLE lambert_scanner_results ("
-        << "\"transfer_id\"                             INTEGER PRIMARY KEY AUTOINCREMENT,"
-        << "\"departure_object_id\"                     TEXT,"
-        << "\"arrival_object_id\"                       TEXT,"
+    // Set up SQL command to create table to store lambert_sequences.
+    std::ostringstream lambertScannerSequencesTableCreate;
+    lambertScannerSequencesTableCreate
+        << "CREATE TABLE sequences ("
+        << "\"sequence_id\"                               INTEGER PRIMARY KEY              ,";
+    for ( int i = 0; i < sequenceLength; ++i )
+    {
+        lambertScannerSequencesTableCreate
+            << "\"target_" << i << "\"                    INTEGER                          ,";
+    }
+    for ( int i = 0; i < sequenceLength - 1; ++i )
+    {
+        lambertScannerSequencesTableCreate
+            << "\"transfer_id_" << i + 1 << "\"           INTEGER                          ,";
+    }
+    lambertScannerSequencesTableCreate
+        << "\"launch_epoch\"                              REAL                             ,"
+        << "\"lambert_transfer_delta_v\"                  REAL                             ,"
+        << "\"mission_duration\"                          REAL                             ,"
+        << "\"atom_transfer_delta_v\"                     REAL                             );";
+
+    // // Execute command to create table.
+    database.exec( lambertScannerSequencesTableCreate.str( ).c_str( ) );
+
+    if ( !database.tableExists( "sequences" ) )
+    {
+        throw std::runtime_error( "ERROR: Creating table 'sequences' failed!" );
+    }
+
+    // Set up SQL command to create table to store lambert_scanner transfers.
+    std::ostringstream lambertScannerTransfersTableCreate;
+    lambertScannerTransfersTableCreate
+        << "CREATE TABLE lambert_scanner_transfers ("
+        << "\"transfer_id\"                             INTEGER PRIMARY KEY,"
+        << "\"departure_object_id\"                     INTEGER,"
+        << "\"arrival_object_id\"                       INTEGER,"
         << "\"departure_epoch\"                         REAL,"
         << "\"time_of_flight\"                          REAL,"
         << "\"revolutions\"                             INTEGER,"
@@ -553,182 +718,396 @@ void createLambertScannerTable( SQLite::Database& database )
         << "\"arrival_delta_v_x\"                       REAL,"
         << "\"arrival_delta_v_y\"                       REAL,"
         << "\"arrival_delta_v_z\"                       REAL,"
-        << "\"transfer_delta_v\"                        REAL"
+        << "\"transfer_delta_v\"                        REAL,"
+        << "\"leg_id\"                                  INTEGER"
         <<                                              ");";
 
     // Execute command to create table.
-    database.exec( lambertScannerTableCreate.str( ).c_str( ) );
+    database.exec( lambertScannerTransfersTableCreate.str( ).c_str( ) );
 
     // Execute command to create index on transfer Delta-V column.
     std::ostringstream transferDeltaVIndexCreate;
     transferDeltaVIndexCreate << "CREATE INDEX IF NOT EXISTS \"transfer_delta_v\" on "
-                              << "lambert_scanner_results (transfer_delta_v ASC);";
+                              << "lambert_scanner_transfers (transfer_delta_v ASC);";
     database.exec( transferDeltaVIndexCreate.str( ).c_str( ) );
 
-    if ( !database.tableExists( "lambert_scanner_results" ) )
+    if ( !database.tableExists( "lambert_scanner_transfers" ) )
     {
-        throw std::runtime_error( "ERROR: Creating table 'lambert_scanner_results' failed!" );
+        throw std::runtime_error( "ERROR: Creating table 'lambert_scanner_transfers' failed!" );
+    }
+
+    // Set up SQL command to create table to store lambert_scanner multi-leg transfers.
+    std::ostringstream lambertScannerMultiLegTransfersTableCreate;
+    lambertScannerMultiLegTransfersTableCreate
+        << "CREATE TABLE lambert_scanner_multi_leg_transfers ("
+        << "\"multi_leg_transfer_id\"                   INTEGER PRIMARY KEY AUTOINCREMENT,"
+        << "\"sequence_id\"                             INTEGER,";
+    for ( int i = 0; i < sequenceLength - 1; ++i )
+    {
+        lambertScannerMultiLegTransfersTableCreate
+            << "\"transfer_id_" << i + 1 << "\"         INTEGER,";
+    }
+    lambertScannerMultiLegTransfersTableCreate
+        << "\"launch_epoch\"                            REAL,"
+        << "\"mission_duration\"                        REAL,"
+        << "\"total_transfer_delta_v\"                  REAL"
+        <<                                              ");";
+
+    // Execute command to create table.
+    database.exec( lambertScannerMultiLegTransfersTableCreate.str( ).c_str( ) );
+
+    // Execute command to create index on total transfer Delta-V column.
+    std::ostringstream totalTransferDeltaVIndexCreate;
+    totalTransferDeltaVIndexCreate << "CREATE INDEX IF NOT EXISTS \"total_transfer_delta_v\" on "
+                                   << "lambert_scanner_multi_leg_transfers "
+                                   << "(total_transfer_delta_v ASC);";
+    database.exec( totalTransferDeltaVIndexCreate.str( ).c_str( ) );
+
+    if ( !database.tableExists( "lambert_scanner_multi_leg_transfers" ) )
+    {
+        throw std::runtime_error(
+            "ERROR: Creating table 'lambert_scanner_multi_leg_transfers' failed!" );
     }
 }
 
-//! Write transfer shortlist to file.
-void writeTransferShortlist( SQLite::Database& database,
-                             const int shortlistNumber,
-                             const std::string& shortlistPath )
+//! Write best multi-leg Lambert transfers for each sequence to file.
+void writeSequencesToFile( SQLite::Database&    database,
+                           const std::string&   sequencesPath,
+                           const int            sequenceLength  )
 {
-    // Fetch transfers to include in shortlist.
-    // Database table is sorted by transfer_delta_v, in ascending order.
-    std::ostringstream shortlistSelect;
-    shortlistSelect << "SELECT * FROM lambert_scanner_results ORDER BY transfer_delta_v ASC LIMIT "
-                    << shortlistNumber << ";";
-    SQLite::Statement query( database, shortlistSelect.str( ) );
+    // Fetch sequences tables from database and sort from lowest to highest Delta-V.
+    std::ostringstream sequencesSelect;
+    sequencesSelect << "SELECT * FROM sequences ORDER BY lambert_transfer_delta_v ASC;";
+    SQLite::Statement query( database, sequencesSelect.str( ) );
 
-    // Write fetch data to file.
-    std::ofstream shortlistFile( shortlistPath.c_str( ) );
+    // Write sequences to file.
+    std::ofstream sequencesFile( sequencesPath.c_str( ) );
 
     // Print file header.
-    shortlistFile << "transfer_id,"
-                  << "departure_object_id,"
-                  << "arrival_object_id,"
-                  << "departure_epoch,"
-                  << "time_of_flight,"
-                  << "revolutions,"
-                  << "prograde,"
-                  << "departure_position_x,"
-                  << "departure_position_y,"
-                  << "departure_position_z,"
-                  << "departure_velocity_x,"
-                  << "departure_velocity_y,"
-                  << "departure_velocity_z,"
-                  << "departure_semi_major_axis,"
-                  << "departure_eccentricity,"
-                  << "departure_inclination,"
-                  << "departure_argument_of_periapsis,"
-                  << "departure_longitude_of_ascending_node,"
-                  << "departure_true_anomaly,"
-                  << "arrival_position_x,"
-                  << "arrival_position_y,"
-                  << "arrival_position_z,"
-                  << "arrival_velocity_x,"
-                  << "arrival_velocity_y,"
-                  << "arrival_velocity_z,"
-                  << "arrival_semi_major_axis,"
-                  << "arrival_eccentricity,"
-                  << "arrival_inclination,"
-                  << "arrival_argument_of_periapsis,"
-                  << "arrival_longitude_of_ascending_node,"
-                  << "arrival_true_anomaly,"
-                  << "transfer_semi_major_axis,"
-                  << "transfer_eccentricity,"
-                  << "transfer_inclination,"
-                  << "transfer_argument_of_periapsis,"
-                  << "transfer_longitude_of_ascending_node,"
-                  << "transfer_true_anomaly,"
-                  << "departure_delta_v_x,"
-                  << "departure_delta_v_y,"
-                  << "departure_delta_v_z,"
-                  << "arrival_delta_v_x,"
-                  << "arrival_delta_v_y,"
-                  << "arrival_delta_v_z,"
-                  << "transfer_delta_v"
+    sequencesFile << "sequence_id,";
+    for ( int i = 0; i < sequenceLength; ++i )
+    {
+        sequencesFile << "target_" << i << ",";
+    }
+    for ( int i = 0; i < sequenceLength - 1; ++i )
+    {
+        sequencesFile << "transfer_id_" << i + 1 << ",";
+    }
+    sequencesFile << "launch_epoch,"
+                  << "lambert_transfer_delta_v,"
+                  << "mission_duration"
                   << std::endl;
 
     // Loop through data retrieved from database and write to file.
     while( query.executeStep( ) )
     {
-        const int    transferId                         = query.getColumn( 0 );
-        const int    departureObjectId                  = query.getColumn( 1 );
-        const int    arrivalObjectId                    = query.getColumn( 2 );
-        const double departureEpoch                     = query.getColumn( 3 );
-        const double timeOfFlight                       = query.getColumn( 4 );
-        const int    revolutions                        = query.getColumn( 5 );
-        const int    prograde                           = query.getColumn( 6 );
-        const double departurePositionX                 = query.getColumn( 7 );
-        const double departurePositionY                 = query.getColumn( 8 );
-        const double departurePositionZ                 = query.getColumn( 9 );
-        const double departureVelocityX                 = query.getColumn( 10 );
-        const double departureVelocityY                 = query.getColumn( 11 );
-        const double departureVelocityZ                 = query.getColumn( 12 );
-        const double departureSemiMajorAxis             = query.getColumn( 13 );
-        const double departureEccentricity              = query.getColumn( 14 );
-        const double departureInclination               = query.getColumn( 15 );
-        const double departureArgumentOfPeriapsis       = query.getColumn( 16 );
-        const double departureLongitudeOfAscendingNode  = query.getColumn( 17 );
-        const double departureTrueAnomaly               = query.getColumn( 18 );
-        const double arrivalPositionX                   = query.getColumn( 19 );
-        const double arrivalPositionY                   = query.getColumn( 20 );
-        const double arrivalPositionZ                   = query.getColumn( 21 );
-        const double arrivalVelocityX                   = query.getColumn( 22 );
-        const double arrivalVelocityY                   = query.getColumn( 23 );
-        const double arrivalVelocityZ                   = query.getColumn( 24 );
-        const double arrivalSemiMajorAxis               = query.getColumn( 25 );
-        const double arrivalEccentricity                = query.getColumn( 26 );
-        const double arrivalInclination                 = query.getColumn( 27 );
-        const double arrivalArgumentOfPeriapsis         = query.getColumn( 28 );
-        const double arrivalLongitudeOfAscendingNode    = query.getColumn( 29 );
-        const double arrivalTrueAnomaly                 = query.getColumn( 30 );
-        const double transferSemiMajorAxis              = query.getColumn( 31 );
-        const double transferEccentricity               = query.getColumn( 32 );
-        const double transferInclination                = query.getColumn( 33 );
-        const double transferArgumentOfPeriapsis        = query.getColumn( 34 );
-        const double transferLongitudeOfAscendingNode   = query.getColumn( 35 );
-        const double transferTrueAnomaly                = query.getColumn( 36 );
-        const double departureDeltaVX                   = query.getColumn( 37 );
-        const double departureDeltaVY                   = query.getColumn( 38 );
-        const double departureDeltaVZ                   = query.getColumn( 39 );
-        const double arrivalDeltaVX                     = query.getColumn( 40 );
-        const double arrivalDeltaVY                     = query.getColumn( 41 );
-        const double arrivalDeltaVZ                     = query.getColumn( 42 );
-        const double transferDeltaV                     = query.getColumn( 43 );
+        const int       sequenceId                     = query.getColumn( 0 );
+        std::vector< int > targets( sequenceLength );
+        for ( unsigned int i = 0; i < targets.size( ); ++i )
+        {
+            targets[ i ]                               = query.getColumn( i + 1 );
+        }
+        std::vector< int > transferIds( sequenceLength - 1 );
+        for ( unsigned int i = 0; i < transferIds.size( ); ++i )
+        {
+            transferIds[ i ]                           = query.getColumn( i + sequenceLength + 1 );
+        }
+        const double    launchEpoch                    = query.getColumn( 2 * sequenceLength );
+        const double    lambertTransferDeltaV          = query.getColumn( 2 * sequenceLength + 1 );
+        const double    missionDuration                = query.getColumn( 2 * sequenceLength + 2 );
 
-        shortlistFile << transferId                         << ","
-                      << departureObjectId                  << ","
-                      << arrivalObjectId                    << ","
-                      << departureEpoch                     << ","
-                      << timeOfFlight                       << ","
-                      << revolutions                        << ","
-                      << prograde                           << ","
-                      << departurePositionX                 << ","
-                      << departurePositionY                 << ","
-                      << departurePositionZ                 << ","
-                      << departureVelocityX                 << ","
-                      << departureVelocityY                 << ","
-                      << departureVelocityZ                 << ","
-                      << departureSemiMajorAxis             << ","
-                      << departureEccentricity              << ","
-                      << departureInclination               << ","
-                      << departureArgumentOfPeriapsis       << ","
-                      << departureLongitudeOfAscendingNode  << ","
-                      << departureTrueAnomaly               << ","
-                      << arrivalPositionX                   << ","
-                      << arrivalPositionY                   << ","
-                      << arrivalPositionZ                   << ","
-                      << arrivalVelocityX                   << ","
-                      << arrivalVelocityY                   << ","
-                      << arrivalVelocityZ                   << ","
-                      << arrivalSemiMajorAxis               << ","
-                      << arrivalEccentricity                << ","
-                      << arrivalInclination                 << ","
-                      << arrivalArgumentOfPeriapsis         << ","
-                      << arrivalLongitudeOfAscendingNode    << ","
-                      << arrivalTrueAnomaly                 << ","
-                      << transferSemiMajorAxis              << ","
-                      << transferEccentricity               << ","
-                      << transferInclination                << ","
-                      << transferArgumentOfPeriapsis        << ","
-                      << transferLongitudeOfAscendingNode   << ","
-                      << transferTrueAnomaly                << ","
-                      << departureDeltaVX                   << ","
-                      << departureDeltaVY                   << ","
-                      << departureDeltaVZ                   << ","
-                      << arrivalDeltaVX                     << ","
-                      << arrivalDeltaVY                     << ","
-                      << arrivalDeltaVZ                     << ","
-                      << transferDeltaV
+        sequencesFile << sequenceId                    << ",";
+        for ( unsigned int i = 0; i < targets.size( ); ++i )
+        {
+            sequencesFile << targets[ i ]              << ",";
+        }
+        for ( unsigned int i = 0; i < transferIds.size( ); ++i )
+        {
+            sequencesFile << transferIds[ i ]          << ",";
+        }
+        sequencesFile << launchEpoch                   << ","
+                      << lambertTransferDeltaV         << ","
+                      << missionDuration
                       << std::endl;
     }
 
-    shortlistFile.close( );
+    sequencesFile.close( );
+}
+
+//! Recurse through sequences leg-by-leg and compute pork-chop plots.
+void recurseLambertTransfers( const int                currentSequencePosition,
+                              const TleObjects&        tleObjects,
+                              const AllEpochs&         allEpochs,
+                              const bool               isPrograde,
+                              const int                revolutionsMaximum,
+                              Sequence&                sequence,
+                              int&                     transferId,
+                              AllLambertPorkChopPlots& allPorkChopPlots )
+{
+    // Check if the end of the sequence has been reached.
+    if ( currentSequencePosition == static_cast< int >( sequence.size( ) ) )
+    {
+        return;
+    }
+
+    for ( unsigned int i = 0; i < tleObjects.size( ); i++ )
+    {
+        sequence[ currentSequencePosition ] = tleObjects[ i ];
+
+        // Check if the current position in the sequence is beyond the first.
+        // (currentSequencePosition = 0 means that the first TLE object ID has to be set).
+        if ( currentSequencePosition > 0 )
+        {
+            const Tle departureObject = sequence[ currentSequencePosition - 1 ];
+            const Tle arrivalObject   = sequence[ currentSequencePosition ];
+            const int currentLeg      = currentSequencePosition;
+            const PorkChopPlotId porkChopPlotId( currentLeg,
+                                                 departureObject.NoradNumber( ),
+                                                 arrivalObject.NoradNumber( ) );
+
+            // Check if pork-chop ID exists already, i.e., combination of current leg, departure
+            // object ID and arrival object ID.
+            // If it exists already, skip the generation of the pork-chop plot.
+            if ( allPorkChopPlots.find( porkChopPlotId ) == allPorkChopPlots.end( ) )
+            {
+                allPorkChopPlots[ porkChopPlotId ]
+                    = computeLambertPorkChopPlot( departureObject,
+                                                  arrivalObject,
+                                                  allEpochs.at( currentLeg ),
+                                                  isPrograde,
+                                                  revolutionsMaximum,
+                                                  transferId );
+            }
+        }
+
+        // Erase the selected TLE object at position currentSequencePosition in sequence.
+        TleObjects tleObjectsLocal = tleObjects;
+        tleObjectsLocal.erase( tleObjectsLocal.begin( ) + i );
+
+        recurseLambertTransfers( currentSequencePosition + 1,
+                                 tleObjectsLocal,
+                                 allEpochs,
+                                 isPrograde,
+                                 revolutionsMaximum,
+                                 sequence,
+                                 transferId,
+                                 allPorkChopPlots );
+    }
+}
+
+//! Compute Lambert pork-chop plot.
+LambertPorkChopPlot computeLambertPorkChopPlot( const Tle&          departureObject,
+                                                const Tle&          arrivalObject,
+                                                const ListOfEpochs& listOfEpochs,
+                                                const bool          isPrograde,
+                                                const int           revolutionsMaximum,
+                                                      int&          transferId )
+{
+    LambertPorkChopPlot porkChopPlot;
+
+    const double earthGravitationalParameter = kMU;
+
+    // Loop over all departure and arrival epoch pairs and compute transfers.
+    for ( unsigned int i = 0; i < listOfEpochs.size( ); ++i )
+    {
+        DateTime departureEpoch = listOfEpochs[ i ].first;
+        DateTime arrivalEpoch   = listOfEpochs[ i ].second;
+
+        // Compute Cartesian departure position and velocity.
+        SGP4 sgp4Departure( departureObject );
+        const Eci tleDepartureState = sgp4Departure.FindPosition( departureEpoch );
+        const Vector6 departureState = getStateVector( tleDepartureState );
+        Vector3 departurePosition;
+        std::copy( departureState.begin( ),
+                   departureState.begin( ) + 3,
+                   departurePosition.begin( ) );
+        Vector3 departureVelocity;
+        std::copy( departureState.begin( ) + 3,
+                   departureState.end( ),
+                   departureVelocity.begin( ) );
+        const Vector6 departureStateKepler
+                    = astro::convertCartesianToKeplerianElements( departureState,
+                                                                  earthGravitationalParameter );
+
+        // Compute Cartesian departure position and velocity.
+        SGP4 sgp4Arrival( arrivalObject );
+        const Eci tleArrivalState = sgp4Arrival.FindPosition( arrivalEpoch );
+        const Vector6 arrivalState = getStateVector( tleArrivalState );
+        Vector3 arrivalPosition;
+        std::copy( arrivalState.begin( ),
+                   arrivalState.begin( ) + 3,
+                   arrivalPosition.begin( ) );
+        Vector3 arrivalVelocity;
+        std::copy( arrivalState.begin( ) + 3,
+                   arrivalState.end( ),
+                   arrivalVelocity.begin( ) );
+        const Vector6 arrivalStateKepler
+                        = astro::convertCartesianToKeplerianElements( arrivalState,
+                                                                      earthGravitationalParameter );
+
+        const double timeOfFlight
+            = ( arrivalEpoch.ToJulian( ) - departureEpoch.ToJulian( ) ) * 24.0 * 3600.0;
+
+        kep_toolbox::lambert_problem targeter( departurePosition,
+                                               arrivalPosition,
+                                               timeOfFlight,
+                                               earthGravitationalParameter,
+                                               !isPrograde,
+                                               revolutionsMaximum );
+
+        const int numberOfSolutions = targeter.get_v1( ).size( );
+
+        // Compute Delta-Vs for transfer and determine index of lowest.
+        typedef std::vector< Vector3 > VelocityList;
+        VelocityList departureDeltaVs( numberOfSolutions );
+        VelocityList arrivalDeltaVs( numberOfSolutions );
+
+        typedef std::vector< double > TransferDeltaVList;
+        TransferDeltaVList transferDeltaVs( numberOfSolutions );
+
+        for ( int j = 0; j < numberOfSolutions; ++j )
+        {
+            // Compute Delta-V for transfer.
+            const Vector3 transferDepartureVelocity = targeter.get_v1( )[ j ];
+            const Vector3 transferArrivalVelocity = targeter.get_v2( )[ j ];
+
+            departureDeltaVs[ j ] = sml::add( transferDepartureVelocity,
+                                              sml::multiply( departureVelocity, -1.0 ) );
+            arrivalDeltaVs[ j ]   = sml::add( arrivalVelocity,
+                                              sml::multiply( transferArrivalVelocity, -1.0 ) );
+
+            transferDeltaVs[ j ]
+                = sml::norm< double >( departureDeltaVs[ j ] )
+                    + sml::norm< double >( arrivalDeltaVs[ j ] );
+        }
+
+        const TransferDeltaVList::iterator minimumDeltaVIterator
+            = std::min_element( transferDeltaVs.begin( ), transferDeltaVs.end( ) );
+        const int minimumDeltaVIndex
+            = std::distance( transferDeltaVs.begin( ), minimumDeltaVIterator );
+
+        const int revolutions = std::floor( ( minimumDeltaVIndex + 1 ) / 2 );
+
+        Vector6 transferState;
+        std::copy( departurePosition.begin( ),
+                   departurePosition.begin( ) + 3,
+                   transferState.begin( ) );
+        std::copy( targeter.get_v1( )[ minimumDeltaVIndex ].begin( ),
+                   targeter.get_v1( )[ minimumDeltaVIndex ].begin( ) + 3,
+                   transferState.begin( ) + 3 );
+        const Vector6 transferStateKepler
+            = astro::convertCartesianToKeplerianElements( transferState,
+                                                          earthGravitationalParameter );
+
+        porkChopPlot.push_back(
+            LambertPorkChopPlotGridPoint( transferId,
+                                          departureEpoch,
+                                          arrivalEpoch,
+                                          timeOfFlight,
+                                          revolutionsMaximum,
+                                          isPrograde,
+                                          departureState,
+                                          departureStateKepler,
+                                          arrivalState,
+                                          arrivalStateKepler,
+                                          transferStateKepler,
+                                          departureDeltaVs[ minimumDeltaVIndex ],
+                                          arrivalDeltaVs[ minimumDeltaVIndex ],
+                                          *minimumDeltaVIterator ) );
+        transferId++;
+
+    }
+    return porkChopPlot;
+}
+
+//! Recurse through sequence leg-by-leg and compute multi-leg transfers.
+void recurseMuiltiLegLambertTransfers(  const int                 currentSequencePosition,
+                                        const Sequence&           sequence,
+                                        AllLambertPorkChopPlots&  allPorkChopPlots,
+                                        const double              stayTime,
+                                        ListOfMultiLegTransfers&  listOfMultiLegTransfers,
+                                        MultiLegTransferData&     multiLegTransferData,
+                                        DateTime                  launchEpoch,
+                                        DateTime                  lastArrivalEpoch )
+{
+    // Check if the end of the sequence has been reached.
+    if ( currentSequencePosition + 1 == static_cast< int >( sequence.size( ) ) )
+    {
+        // Add transfer to list.
+        listOfMultiLegTransfers.push_back( MultiLegTransfer( launchEpoch, multiLegTransferData ) );
+
+        return;
+    }
+
+    // Extract pork-chop plot based on current position in sequence.
+    const PorkChopPlotId porkChopPlotId( currentSequencePosition + 1,
+                                         sequence[ currentSequencePosition ].NoradNumber( ),
+                                         sequence[ currentSequencePosition + 1 ].NoradNumber( ) );
+    LambertPorkChopPlot porkChopPlot = allPorkChopPlots[ porkChopPlotId ];
+    LambertPorkChopPlot porkChopPlotMatched;
+
+    // If we are beyond the first leg, the pork-chop plot needs to be filtered to ensure that only
+    // the departure epochs that match the last arrival epoch + stay time are retained.
+    if ( currentSequencePosition > 0 )
+    {
+        // Declare list of indices in pork-chop plot list to keep based on matching the arrival
+        // epoch from the previous leg with the departure epochs for the current leg.
+        std::vector< int > matchIndices;
+
+        // Loop over pork-chop plot list and save indices where the last arrival epoch + stay time
+        // matches the departure epochs for the current leg.
+        for ( unsigned int i = 0; i < porkChopPlot.size( ); ++i )
+        {
+            DateTime matchEpoch = lastArrivalEpoch;
+            matchEpoch.AddSeconds( stayTime );
+            if ( porkChopPlot[ i ].departureEpoch == matchEpoch )
+            {
+                matchIndices.push_back( i );
+            }
+        }
+
+        // Loop over the matched indices and copy the pork-chop plot grid points to the matched
+        // list.
+        for ( unsigned int i = 0; i < matchIndices.size( ); ++i )
+        {
+            porkChopPlotMatched.push_back( porkChopPlot[ matchIndices[ i ] ] );
+        }
+    }
+    else
+    {
+        porkChopPlotMatched = porkChopPlot;
+    }
+
+    // Loop over all departure-arrival epoch pairs in pork-chop plot.
+    for ( unsigned int i = 0; i < porkChopPlotMatched.size( ); ++i )
+    {
+        // If the current position is the start of the first leg, set the launch epoch to the
+        // departure epoch for the multi-leg transfer.
+        if ( currentSequencePosition == 0 )
+        {
+            launchEpoch = porkChopPlotMatched[ i ].departureEpoch;
+        }
+
+        // Add the time-of-flight and Delta V of the current transfer to the data container.
+        multiLegTransferData.push_back( TransferData( porkChopPlotMatched[ i ].transferId,
+                            porkChopPlotMatched[ i ].timeOfFlight,
+                            porkChopPlotMatched[ i ].transferDeltaV ) );
+
+        // Update the last arrival epoch to the current arrival epoch.
+        lastArrivalEpoch = porkChopPlotMatched[ i ].arrivalEpoch;
+
+        recurseMuiltiLegLambertTransfers( currentSequencePosition + 1,
+                                          sequence,
+                                          allPorkChopPlots,
+                                          stayTime,
+                                          listOfMultiLegTransfers,
+                                          multiLegTransferData,
+                                          launchEpoch,
+                                          lastArrivalEpoch );
+
+        // Remove last entry in multi-leg transfer;
+        multiLegTransferData.pop_back( );
+    }
 }
 
 } // namespace d2d

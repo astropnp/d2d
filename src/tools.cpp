@@ -5,24 +5,18 @@
  * See accompanying file LICENSE.md or copy at http://opensource.org/licenses/MIT
  */
 
-#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
-#include <libsgp4/DateTime.h>
-#include <libsgp4/Eci.h>
 #include <libsgp4/Globals.h>
 #include <libsgp4/SGP4.h>
 #include <libsgp4/TimeSpan.h>
-#include <libsgp4/Tle.h>
-
-#include "D2D/tools.hpp"
-
-#include <Astro/constants.hpp>
 
 #include <keplerian_toolbox.h>
+
+#include "D2D/tools.hpp"
 
 namespace d2d
 {
@@ -97,7 +91,7 @@ bool executeVirtualTleConvergenceTest( const Vector6& propagatedCartesianState,
                                        const Vector6& trueCartesianState,
                                        const double relativeTolerance,
                                        const double absoluteTolerance )
-{    
+{
     // Check for NAN values.
     for ( int i = 0; i < 6; i++ )
     {
@@ -109,20 +103,20 @@ bool executeVirtualTleConvergenceTest( const Vector6& propagatedCartesianState,
         }
     }
 
-    // Check if error between target and propagated Cartesian states is within specified 
+    // Check if error between target and propagated Cartesian states is within specified
     // tolerances.
     Vector6 absoluteDifference = propagatedCartesianState;
     Vector6 relativeDifference = propagatedCartesianState;
     for ( int i = 0; i < 6; i++ )
     {
-        absoluteDifference[ i ] 
-            = std::fabs( propagatedCartesianState[ i ] - trueCartesianState[ i ] );        
+        absoluteDifference[ i ]
+            = std::fabs( propagatedCartesianState[ i ] - trueCartesianState[ i ] );
         relativeDifference[ i ] = absoluteDifference[ i ] / std::fabs( trueCartesianState[ i ] );
         if ( relativeDifference[ i ] > relativeTolerance )
         {
             if ( absoluteDifference[ i ] > absoluteTolerance )
             {
-                // If the relative and absolute difference for the ith element exceeds the 
+                // If the relative and absolute difference for the ith element exceeds the
                 // specified tolerances, the convergence test has failed.
                 return false;
             }
@@ -208,6 +202,204 @@ int getTleCatalogType( const std::string& catalogFirstLine )
     }
 
     return tleLines;
+}
+
+//! Recurse leg-by-leg to generate list of TLE sequences.
+void recurseSequences( const int                    currentSequencePosition,
+                       const TleObjects&            tleObjects,
+                             Sequence&              sequence,
+                             int&                   sequenceId,
+                             ListOfSequences&       listOfSequences )
+{
+    // If current leg has reached the length of the sequence, then the sequence is complete.
+    if ( currentSequencePosition == static_cast< int >( sequence.size( ) ) )
+    {
+        return;
+    }
+
+    // Loop through pool of TLE objects and store IDs in sequence.
+    for ( unsigned int i = 0; i < tleObjects.size( ); i++ )
+    {
+        // Store ith TLE object in sequence at position of current leg.
+        sequence[ currentSequencePosition ] = tleObjects[ i ];
+
+        // Create a local copy of the list of TLE objects and erase the object selected for the
+        // current leg.
+        TleObjects tleObjectsLocal = tleObjects;
+        tleObjectsLocal.erase( tleObjectsLocal.begin( ) + i );
+
+        // Proceed to the next leg in the sequence through recursion.
+        recurseSequences( currentSequencePosition + 1,
+                          tleObjectsLocal,
+                          sequence,
+                          sequenceId,
+                          listOfSequences );
+
+        // Write the sequence to the list.
+        if ( currentSequencePosition == static_cast< int >( sequence.size( ) ) - 1 )
+        {
+            listOfSequences[ sequenceId ] = sequence;
+            sequenceId++;
+        }
+    }
+}
+
+//! Compute departure-arrival epoch pairs for all pork-chop plots.
+AllEpochs computeAllPorkChopPlotEpochs( const int       sequenceLength,
+                                        const double    stayTime,
+                                        const DateTime& departureEpochInitial,
+                                        const int       departureEpochSteps,
+                                        const double    departureEpochStepSize,
+                                        const double    timeOfFlightMinimum,
+                                        const int       timeOfFlightSteps,
+                                        const double    timeOfFlightStepSize )
+{
+    // Create container of unique departure epochs that are used per leg to compute the pork-chop
+    // data set.
+    std::vector< DateTime > uniqueDepartureEpochs;
+    uniqueDepartureEpochs.push_back( departureEpochInitial );
+    for ( int i = 1; i < departureEpochSteps + 1; ++i )
+    {
+        DateTime departureEpoch = departureEpochInitial;
+        departureEpoch = departureEpoch.AddSeconds( departureEpochStepSize * i );
+        uniqueDepartureEpochs.push_back( departureEpoch );
+    }
+
+    AllEpochs allEpochs;
+
+    // Loop over each leg and generate the departure-arrival epoch pairs.
+    for ( int i = 0; i < sequenceLength - 1; ++i )
+    {
+        ListOfEpochs listOfEpochs;
+
+        // Loop over unique departure epochs.
+        for ( unsigned int j = 0; j < uniqueDepartureEpochs.size( ); ++j )
+        {
+            // Loop over time-of-flight grid.
+            for ( int k = 0; k < timeOfFlightSteps + 1; k++ )
+            {
+                const double timeOfFlight = timeOfFlightMinimum + k * timeOfFlightStepSize;
+                const DateTime departureEpoch = uniqueDepartureEpochs[ j ];
+                const DateTime arrivalEpoch = uniqueDepartureEpochs[ j ].AddSeconds( timeOfFlight );
+
+                // Store pair of departure and arrival epochs in the list.
+                listOfEpochs.push_back( std::make_pair< DateTime, DateTime >( departureEpoch,
+                                                                              arrivalEpoch ) );
+            }
+        }
+
+        // Store list of all departure and arrival epoch combinations for the current leg in the
+        // map.
+        allEpochs[ i + 1 ] = listOfEpochs;
+
+        // Extract all arrival epochs from list of epochs.
+        std::vector< DateTime > listOfArrivalEpochs;
+        for ( unsigned int j = 0; j < listOfEpochs.size( ); ++j )
+        {
+            listOfArrivalEpochs.push_back( listOfEpochs[ j ].second );
+        }
+
+        // Sort arrival epochs and only keep unique entries. The unique arrival epochs are saved as
+        // the departure epochs for the next leg after adding a fixed stay time.
+        std::sort( listOfArrivalEpochs.begin( ), listOfArrivalEpochs.end( ) );
+        std::vector< DateTime >::iterator arrivalEpochIterator
+            = std::unique( listOfArrivalEpochs.begin( ), listOfArrivalEpochs.end( ) );
+        listOfArrivalEpochs.resize( std::distance( listOfArrivalEpochs.begin( ),
+                                                   arrivalEpochIterator ) );
+        for ( unsigned int j = 0; j < listOfArrivalEpochs.size( ); ++j )
+        {
+            listOfArrivalEpochs[ j ] = listOfArrivalEpochs[ j ].AddSeconds( stayTime );
+        }
+        uniqueDepartureEpochs = listOfArrivalEpochs;
+    }
+
+    return allEpochs;
+}
+
+//! Overload ==-operator to compare PorkChopPlotId objects.
+bool operator==( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    bool isEqual = false;
+    if ( id1.legId == id2.legId )
+    {
+        if ( id1.departureObjectId == id2.departureObjectId )
+        {
+            if ( id1.arrivalObjectId == id2.arrivalObjectId )
+            {
+                isEqual = true;
+            }
+        }
+    }
+
+    return isEqual;
+}
+
+//! Overload !=-operator to compare PorkChopPlotId objects.
+bool operator!=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    return !(id1 == id2);
+}
+
+//! Overload <-operator to compare PorkChopPlotId objects.
+bool operator<( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    bool isLessThan = false;
+    if ( id1.legId == id2.legId )
+    {
+        if ( id1.departureObjectId == id2.departureObjectId )
+        {
+            if ( id1.arrivalObjectId < id2.arrivalObjectId )
+            {
+                isLessThan = true;
+            }
+        }
+        else if ( id1.departureObjectId < id2.departureObjectId )
+        {
+            isLessThan = true;
+        }
+    }
+    else if ( id1.legId < id2.legId )
+    {
+        isLessThan = true;
+    }
+
+    return isLessThan;
+}
+
+//! Overload >=-operator to compare PorkChopPlotId objects.
+bool operator<=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    bool isLessThanOrEqual = false;
+    if ( id1 < id2 )
+    {
+        isLessThanOrEqual = true;
+    }
+    else if ( id1 == id2 )
+    {
+        isLessThanOrEqual = true;
+    }
+    return isLessThanOrEqual;
+}
+
+//! Overload >-operator to compare PorkChopPlotId objects.
+bool operator>( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    return !( id1 <= id2 );
+}
+
+//! Overload >=-operator to compare PorkChopPlotId objects.
+bool operator>=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 )
+{
+    bool isGreaterThanOrEqual = false;
+    if ( id1 > id2 )
+    {
+        isGreaterThanOrEqual = true;
+    }
+    else if ( id1 == id2 )
+    {
+        isGreaterThanOrEqual = true;
+    }
+    return isGreaterThanOrEqual;
 }
 
 } // namespace d2d

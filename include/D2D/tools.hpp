@@ -13,11 +13,14 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <boost/array.hpp>
 
 #include <catch.hpp>
 
+#include <libsgp4/DateTime.h>
 #include <libsgp4/Eci.h>
 #include <libsgp4/Tle.h>
 
@@ -29,6 +32,31 @@
 
 namespace d2d
 {
+
+//! Forward declarations
+struct MultiLegTransfer;
+struct TransferData;
+
+//! List of TLE objects generated from TLE strings.
+typedef std::vector< Tle > TleObjects;
+//! Sequence of TLE Objects.
+typedef std::vector< Tle > Sequence;
+//! List of TLE object ID sequences (key=sequence ID).
+typedef std::map< int, Sequence > ListOfSequences;
+
+//! Departure-Arrival epoch pair.
+typedef std::pair< DateTime, DateTime > Epochs;
+//! List of departure-arrival epoch pairs.
+typedef std::vector< Epochs > ListOfEpochs;
+//! Collection of lists of departure-arrival epoch pairs (key=leg ID).
+typedef std::map< int, ListOfEpochs > AllEpochs;
+
+//! List of multi-leg transfer data.
+typedef std::vector< TransferData > MultiLegTransferData;
+//! List of multi-leg transfers.
+typedef std::vector< MultiLegTransfer > ListOfMultiLegTransfers;
+//! Collection of all multi-leg transfers for all sequences (key=sequence ID).
+typedef std::map< int, ListOfMultiLegTransfers > AllMultiLegTransfers;
 
 //! Create custom CATCH Approx object with tolerance for comparing doubles.
 /*!
@@ -84,7 +112,7 @@ StateHistory sampleKeplerOrbit( const Vector6& initialState,
  * Samples a SGP4 orbit and generates a state-history stored in a STL map (key=epoch). The
  * SGP4 orbit is sampled by using FindPosition() provided with libsgp4.
  *
- * @param[in]  tle                    Two-line element data of the object to be propagated 
+ * @param[in]  tle                    Two-line element data of the object to be propagated
  * @param[in]  initialEpochJulian     Starting epoch for the SGP4 propagator
  *                                    (default = 0.0) [Julian date]
  * @param[in]  propagationTime        Total propagation time [s]
@@ -102,17 +130,17 @@ StateHistory sampleSGP4Orbit( const Tle& tle,
  * convertCartesianStateToTwoLineElements function in the Atom library.
  *
  * @sa atom::convertCartesianStateToTwoLineElements
- * @param[in]   propagatedCartesianState    The state obtained after propagating virtual TLE 
+ * @param[in]   propagatedCartesianState    The state obtained after propagating virtual TLE
  *                                          using SGP4 with time-of-flight = 0.0
- * @param[in]   trueCartesianState          The true cartesian state corresponding to zero 
+ * @param[in]   trueCartesianState          The true cartesian state corresponding to zero
  *                                          time-of-flight
- * @param[in]   relativeTolerance           Relative difference between the propagated and true 
- *                                          Cartesian state is checked against the relative 
+ * @param[in]   relativeTolerance           Relative difference between the propagated and true
+ *                                          Cartesian state is checked against the relative
  *                                          tolerance
- * @param[in]   absoluteTolerance           Absolute difference between the propagated and true 
- *                                          Cartesian state is checked against the absolute 
+ * @param[in]   absoluteTolerance           Absolute difference between the propagated and true
+ *                                          Cartesian state is checked against the absolute
  *                                          tolerance
- * @return                                  Returns boolean 'true' if the test passed, 
+ * @return                                  Returns boolean 'true' if the test passed,
  *                                          'false' otherwise
  */
 bool executeVirtualTleConvergenceTest( const Vector6& propagatedCartesianState,
@@ -227,6 +255,260 @@ void removeNewline( std::string& string );
  * @return                     Number of lines per TLE in catalog
  */
 int getTleCatalogType( const std::string& catalogFirstLine );
+
+//! Recurse leg-by-leg to generate list of TLE sequences.
+/*!
+ * Recurses through pool of TLE objects to generate list of sequences containing TLE IDs (NORAD
+ * number). The sequences are all of a specified length. The final list of sequences generated
+ * contains a full enumeration of all possible sequences using the TLE object pool.
+ *
+ * @sa executeLambertScanner
+ * @param[in]       currentSequencePosition     Current position in sequence
+ * @param[in]       tleObjects                  Pool of TLE objects to select from
+ * @param[in]       sequence                    Sequence of TLE object IDs
+ * @param[in]       sequenceId                  Counter for unique ID assigned to sequences
+ * @param[out]      listOfSequences             List of sequences generated
+ */
+void recurseSequences( const int                    currentSequencePosition,
+                       const TleObjects&            tleObjects,
+                             Sequence&              sequence,
+                             int&                   sequenceId,
+                             ListOfSequences&       listOfSequences );
+
+//! Compute departure-arrival epoch pairs for all pork-chop plots.
+/*!
+ * Computes all departure and arrival epochs for each pork-chop plot at each leg. Since multiple
+ * combinations of departure epoch and time-of-flight can lead the same arrival epoch, the unique
+ * list of arrival epochs are extracted from each leg. A fixed stay time is added to each of these
+ * arrival epochs, yields the list of departure epochs for the subsequence leg. The function returns
+ * a map containing the departure-arrival epoch pairs belonging to the pork-chop plots for each leg.
+ *
+ * @param[in]       sequenceLength              Fixed length of multi-leg sequence
+ * @param[in]       stayTime                    Fixed stay time at arrival object [s]
+ * @param[in]       departureEpochInitial       Initial departure epoch at start of grid
+ * @param[in]       departureEpochSteps         Number of steps within departure epoch grid
+ * @param[in]       departureEpochStepSize      Step size within departure epoch grid [s]
+ * @param[in]       timeOfFlightMinimum         Minimum time-of-flight [s]
+ * @param[in]       timeOfFlightSteps           Number of steps within time-of-flight grid
+ * @param[in]       timeOfFlightStepSize        Step size within time-of-flight grid [s]
+ */
+AllEpochs computeAllPorkChopPlotEpochs( const int       sequenceLength,
+                                        const double    stayTime,
+                                        const DateTime& departureEpochInitial,
+                                        const int       departureEpochSteps,
+                                        const double    departureEpochStepSize,
+                                        const double    timeOfFlightMinimum,
+                                        const int       timeOfFlightSteps,
+                                        const double    timeOfFlightStepSize );
+
+//! Pork-chop plot leg, departure object and arrival object IDs.
+/*!
+ * Data struct containing leg, departure object and arrival object IDs that define the location of a
+ * given pork-chop plot along the sequence tree. These ID numbers serve to uniquely identify a
+ * pork-chop plot. The data struct is used as the key in a map to associate pork-chop plots along
+ * the sequence tree. This ensures that the pork-chop plots are only computed once.
+ *
+ * @sa recurseSequences, recurseTransfers, PorkChopPlotGridPoint
+ */
+struct PorkChopPlotId
+{
+public:
+
+    //! Construct data struct.
+    /*!
+     * Constructs data struct based on leg, departure object and arrival object IDs that define the
+     * location of a pork-chop plot within the sequence tree.
+     */
+    PorkChopPlotId( const int aLegID,
+                    const int aDepartureObjectId,
+                    const int anArrivalObjectId )
+        : legId( aLegID ),
+          departureObjectId( aDepartureObjectId ),
+          arrivalObjectId( anArrivalObjectId )
+    { }
+
+    //! Leg ID.
+    const int legId;
+
+    //! Departure object ID.
+    const int departureObjectId;
+
+    //! Arrival object ID
+    const int arrivalObjectId;
+
+protected:
+private:
+};
+
+//! Overload ==-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads ==-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * sequentially checking that the leg, departure object and arrival object IDs are equal in both
+ * objects.
+ *
+ * @sa PorkChopPlotId
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        True if PorkChopPlotId objects are equal, false otherwise
+ */
+bool operator==( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+//! Overload !=-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads !=-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * negating the result obtained from calling the ==-operator on both objects.
+ *
+ * @sa PorkChopPlotId,
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        False if PorkChopPlotId objects are equal, true otherwise
+ */
+bool operator!=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+//! Overload <-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads <-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * sequentially checking that the leg, departure object and arrival object IDs of the first
+ * PorkChopPlotId object (first argument) are less than the corresponding values stored in the
+ * second PorkChopPlotId object (second argument).
+ *
+ * @sa PorkChopPlotId
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        True if id1 is less than id2, false otherwise
+ */
+bool operator<( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+//! Overload >=-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads <=-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * checking that the results obtained from calling the ==-operator or the <-operator are true.
+ *
+ * @sa PorkChopPlotId
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        True if id1 is less than or equal to id2, false otherwise
+ */
+bool operator<=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+//! Overload >-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads >-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * checking negating the results obtained from calling the <=-operator on both objects.
+ *
+ * @sa PorkChopPlotId
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        True if id1 is greater than id2, false otherwise
+ */
+bool operator>( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+//! Overload >=-operator to compare PorkChopPlotId objects.
+/*!
+ * Overloads >=-operator to compare two PorkChopPlotId objects. The comparison is based on
+ * checking that the results obtained from calling the ==-operator or the >-operator are true.
+ *
+ * @sa PorkChopPlotId
+ * @param[in] id1 First PorkChopPlotId object
+ * @param[in] id2 Second PorkChopPlotId object
+ * @return        True if id1 is greater than or equal to id2, false otherwise
+ */
+bool operator>=( const PorkChopPlotId& id1, const PorkChopPlotId& id2 );
+
+
+//! Data for single transfer.
+/*!
+ * Data struct based on a single transfer leg. The transfer ID is set using the value stored in a
+ * pork-chop plot. The time-of-flight and transfer \f$\Delta V\f$ are extracting from the pork-chop
+ * plot.
+ */
+struct TransferData
+{
+public:
+
+    //! Construct data struct.
+    /*!
+     * Constructs data based on transfer ID for specified transfer in pork-chop plot and
+     * corresponding time-of-flight and \f$\Delta V\f$.
+     *
+     * @sa MultiLegTransfer
+     * @param[in] aTransferId       A transfer ID extracted from a pork-chop plot
+     * @param[in] aTimeOfFlight     Time-of-flight associated with a given transfer ID
+     * @param[in] aTransferDeltaV   \f$\Delta V\f$ associated with a given transfer ID
+     */
+    TransferData( const int     aTransferId,
+                  const double  aTimeOfFlight,
+                  const double  aTransferDeltaV )
+        : transferId( aTransferId ),
+          timeOfFlight( aTimeOfFlight ),
+          transferDeltaV( aTransferDeltaV )
+    { }
+
+    //! Overload operator-=.
+    /*!
+     * Overloads operator-= to assign current object to object provided as input.
+     *
+     * WARNING: this is a dummy overload to get by the problem of adding a TransferData object to a
+     *          STL container! It does not correctly assign the current object to the dummy transfer
+     *          data object provided!
+     *
+     * @sa MultiLegTransferData, MultiLegTransfer
+     * @param[in] dummyTransferData Dummy transfer data object that is ignored
+     * @return                      The current object
+     */
+    TransferData& operator=( const TransferData& dummyTransferData )
+    {
+        return *this;
+    }
+
+    //! Transfer ID.
+    const int transferId;
+
+    //! Time-of-flight [s].
+    const double timeOfFlight;
+
+    //! Transfer \f$\Delta V\f$ [km/s]
+    const double transferDeltaV;
+
+protected:
+private:
+};
+
+//! Data for multi-leg transfer.
+/*!
+ * Data struct based on a multi-leg transfer. The launch epoch is set as the departure epoch for the
+ * first leg. The list of transfer data is based on the transfer IDs for the individual legs and the
+ * associated time-of-flight and transfer \f$\Delta V\f$ values.
+ */
+struct MultiLegTransfer
+{
+public:
+
+    //! Construct data struct.
+    /*!
+     * Constructs data struct based on launch epoch from departure epoch window for the first leg,
+     * and a list of transfer data based on the transfer IDs for individual legs and associated
+     * time-of-flight and \f$\Delta V\f$ values.
+     *
+     * @param[in] aLaunchEpoch                  A launch epoch for a multi-leg transfer
+     * @param[in] someMultiLegTransferData      A list of multiple transfers IDs and associated
+     *                                          time-of-flight and \f$\Delta V\f$ values
+     */
+    MultiLegTransfer( const DateTime&               aLaunchEpoch,
+                      const MultiLegTransferData&   someMultiLegTransferData )
+        : launchEpoch( aLaunchEpoch ),
+          multiLegTransferData( someMultiLegTransferData )
+    { }
+
+    //! Launch epoch (departure epoch for first leg).
+    DateTime launchEpoch;
+
+    //! List of data per leg.
+    MultiLegTransferData multiLegTransferData;
+
+protected:
+private:
+};
 
 } // namespace d2d
 
