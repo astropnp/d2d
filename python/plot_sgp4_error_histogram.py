@@ -169,41 +169,79 @@ def plotComponents( errorX, errorY, errorZ,                                     
 					xAxisLabel, yAxisLabel, plotTitle,                                            \
 					flag ):
 
-	n, bins, patches = plt.hist( errorX, bins=200, histtype='step', normed=False,                 \
-								 color=xcolor, alpha=1, label=xlegend, log=False )
-	n, bins, patches = plt.hist( errorY, bins=200, histtype='step', normed=False,                 \
-								 color=ycolor, alpha=1, label=ylegend, log=False )
-	n, bins, patches = plt.hist( errorZ, bins=200, histtype='step', normed=False,                 \
-								 color=zcolor, alpha=1, label=zlegend, log=False )
+	if flag == True and config['set_axes_position_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_position_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
+		print "Using user defined axes limits for position component plot..."
+		print ""
+		if config['normed'] == 'True':
+			weights = np.ones_like( errorX ) / float( len( errorX ) )
+		else:
+			weights = None
+		n, bins, patches = plt.hist( errorX, bins=200,                          				  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=xcolor, alpha=1, label=xlegend, log=False )
+		n, bins, patches = plt.hist( errorY, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=ycolor, alpha=1, label=ylegend, log=False )
+		n, bins, patches = plt.hist( errorZ, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=zcolor, alpha=1, label=zlegend, log=False )
+		if yAxesUpperLimit != 0:
+			plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_velocity_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_velocity_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
+		print "Using user defined axes limits for velocity component plot..."
+		print ""
+		if config['normed'] == 'True':
+			weights = np.ones_like( errorX ) / float( len( errorX ) )
+		else:
+			weights = None
+		n, bins, patches = plt.hist( errorX, bins=200,                          				  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=xcolor, alpha=1, label=xlegend, log=False )
+		n, bins, patches = plt.hist( errorY, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=ycolor, alpha=1, label=ylegend, log=False )
+		n, bins, patches = plt.hist( errorZ, bins=200,											  \
+									 range=(xAxesLowerLimit, xAxesUpperLimit),  				  \
+									 histtype='step', normed=False, weights=weights,			  \
+									 color=zcolor, alpha=1, label=zlegend, log=False )
+		if yAxesUpperLimit != 0:
+			plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if config['set_axes_velocity_component_flag'] == 'False' 								      \
+		and config['set_axes_position_component_flag'] == 'False':
+			if config['normed'] == 'True':
+				weights = np.ones_like( errorX ) / float( len( errorX ) )
+			else:
+				weights = None
+			n, bins, patches = plt.hist( errorX, bins=200,                          			  \
+										 histtype='step', normed=False, weights=weights,          \
+										 color=xcolor, alpha=1, label=xlegend, log=False )
+			n, bins, patches = plt.hist( errorY, bins=200,										  \
+										 histtype='step', normed=False, weights=weights,          \
+										 color=ycolor, alpha=1, label=ylegend, log=False )
+			n, bins, patches = plt.hist( errorZ, bins=200,										  \
+										 histtype='step', normed=False, weights=weights,          \
+										 color=zcolor, alpha=1, label=zlegend, log=False )
 
 	# Figure properties
-	plt.xlabel( xAxisLabel )
-	plt.ylabel( yAxisLabel )
-
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle )
-
-	if flag == True:
-		xAxesLowerLimit = config['set_axes_position'][ 0 ]
-		xAxesUpperLimit = config['set_axes_position'][ 1 ]
-		yAxesLowerLimit = config['set_axes_position'][ 2 ]
-		yAxesUpperLimit = config['set_axes_position'][ 3 ]
-	else:
-		xAxesLowerLimit = config['set_axes_velocity'][ 0 ]
-		xAxesUpperLimit = config['set_axes_velocity'][ 1 ]
-		yAxesLowerLimit = config['set_axes_velocity'][ 2 ]
-		yAxesUpperLimit = config['set_axes_velocity'][ 3 ]
-
-	if xAxesLowerLimit != 0                                                      				  \
-		or xAxesUpperLimit != 0                                                    				  \
-			or yAxesLowerLimit != 0                                                  			  \
-				or yAxesUpperLimit != 0:
-					print "Using user defined axes limits"
-					print ""
-					plt.axis([xAxesLowerLimit,                                           		  \
-										xAxesUpperLimit,                                          \
-										yAxesLowerLimit,                                          \
-										yAxesUpperLimit])
+	plt.xlabel( xAxisLabel )
+	plt.ylabel( yAxisLabel )
 
 	xLegend = mlines.Line2D( [], [], color=xcolor, label=xlegend )
 	yLegend = mlines.Line2D( [], [], color=ycolor, label=ylegend )
@@ -234,32 +272,151 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 						   xAxisLabel, yAxisLabel, plotTitle,           						  \
 						   flag ):
 
-	xDataHist, xBinEdges = np.histogram( errorX, bins=50, normed=False )
-	xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+	if flag == True and config['set_axes_position_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_position_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_position_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_position_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_position_component'][ 3 ]
+		print "Using user defined axes limits for position component plot..."
+		print ""
+		if config['normed'] == 'True':
+			weights = np.ones_like( errorX ) / float( len( errorX ) )
+		else:
+			weights = None
+		xDataHist, xBinEdges = np.histogram( errorX, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
 
-	yDataHist, yBinEdges = np.histogram( errorY, bins=50, normed=False )
-	yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+		yDataHist, yBinEdges = np.histogram( errorY, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
 
-	zDataHist, zBinEdges = np.histogram( errorZ, bins=50, normed=False )
-	zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+		zDataHist, zBinEdges = np.histogram( errorZ, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
 
-	xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=xcolor, label=xlegend,     \
-								 marker='s', markersize=6, markerfacecolor=xcolor )
+		xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=xcolor, label=xlegend,     	 					  	  \
+									 marker='s', markersize=6, markerfacecolor=xcolor )
 
-	yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=ycolor, label=ylegend,     \
-								 marker='v', markersize=6, markerfacecolor=ycolor )
+		yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   	  \
+									 linestyle='solid', linewidth=2, 						  	  \
+									 color=ycolor, label=ylegend,     					      	  \
+									 marker='v', markersize=6, markerfacecolor=ycolor )
 
-	zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                           \
-								 linestyle='solid', linewidth=2, color=zcolor, label=zlegend,     \
-								 marker='*', markersize=6, markerfacecolor=zcolor )
+		zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=zcolor, label=zlegend,     						  	  \
+									 marker='*', markersize=6, markerfacecolor=zcolor )
 
-	markerFigure = plt.figure( )
-	ax = markerFigure.add_subplot( 1, 1, 1 )
-	ax.add_line( xMarkerLine )
-	ax.add_line( yMarkerLine )
-	ax.add_line( zMarkerLine )
+
+		markerFigure = plt.figure( )
+		ax = markerFigure.add_subplot( 1, 1, 1 )
+		ax.add_line( xMarkerLine )
+		ax.add_line( yMarkerLine )
+		ax.add_line( zMarkerLine )
+		xmin, xmax, ymin, ymax = ax.axis('auto')
+		ax.set_xlim( xmin, xmax )
+		ax.set_ylim( ymin, ymax )
+		if yAxesUpperLimit != 0:
+			ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if flag == False and config['set_axes_velocity_component_flag'] == 'True':
+		xAxesLowerLimit = config['set_axes_velocity_component'][ 0 ]
+		xAxesUpperLimit = config['set_axes_velocity_component'][ 1 ]
+		yAxesLowerLimit = config['set_axes_velocity_component'][ 2 ]
+		yAxesUpperLimit = config['set_axes_velocity_component'][ 3 ]
+		print "Using user defined axes limits for velocity component plot..."
+		print ""
+		if config['normed'] == 'True':
+			weights = np.ones_like( errorX ) / float( len( errorX ) )
+		else:
+			weights = None
+		xDataHist, xBinEdges = np.histogram( errorX, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+
+		yDataHist, yBinEdges = np.histogram( errorY, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+
+		zDataHist, zBinEdges = np.histogram( errorZ, bins=50,									  \
+									range=(xAxesLowerLimit, xAxesUpperLimit), normed=False,		  \
+									weights=weights )
+		zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+
+		xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=xcolor, label=xlegend,     	 					  	  \
+									 marker='s', markersize=6, markerfacecolor=xcolor )
+
+		yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   	  \
+									 linestyle='solid', linewidth=2, 						  	  \
+									 color=ycolor, label=ylegend,     					      	  \
+									 marker='v', markersize=6, markerfacecolor=ycolor )
+
+		zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   	  \
+									 linestyle='solid', linewidth=2,  						  	  \
+									 color=zcolor, label=zlegend,     						  	  \
+									 marker='*', markersize=6, markerfacecolor=zcolor )
+
+
+		markerFigure = plt.figure( )
+		ax = markerFigure.add_subplot( 1, 1, 1 )
+		ax.add_line( xMarkerLine )
+		ax.add_line( yMarkerLine )
+		ax.add_line( zMarkerLine )
+		xmin, xmax, ymin, ymax = ax.axis('auto')
+		ax.set_xlim( xmin, xmax )
+		ax.set_ylim( ymin, ymax )
+		if yAxesUpperLimit != 0:
+			ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
+
+	if config['set_axes_position_component_flag'] == 'False' 									  \
+		and config['set_axes_velocity_component_flag'] == 'False':
+			if config['normed'] == 'True':
+				weights = np.ones_like( errorX ) / float( len( errorX ) )
+			else:
+				weights = None
+			xDataHist, xBinEdges = np.histogram( errorX, bins=50, normed=False, weights=weights )
+			xBinCentre = ( xBinEdges[:-1] + xBinEdges[1:] ) / 2
+
+			yDataHist, yBinEdges = np.histogram( errorY, bins=50, normed=False, weights=weights )
+			yBinCentre = ( yBinEdges[:-1] + yBinEdges[1:] ) / 2
+
+			zDataHist, zBinEdges = np.histogram( errorZ, bins=50, normed=False, weights=weights )
+			zBinCentre = ( zBinEdges[:-1] + zBinEdges[1:] ) / 2
+
+			xMarkerLine = mlines.Line2D( xBinCentre, xDataHist,     							  \
+										 linestyle='solid', linewidth=2,  						  \
+										 color=xcolor, label=xlegend,     	 					  \
+										 marker='s', markersize=6, markerfacecolor=xcolor )
+
+			yMarkerLine = mlines.Line2D( yBinCentre, yDataHist,                                   \
+										 linestyle='solid', linewidth=2, 						  \
+										 color=ycolor, label=ylegend,     					      \
+										 marker='v', markersize=6, markerfacecolor=ycolor )
+
+			zMarkerLine = mlines.Line2D( zBinCentre, zDataHist,                                   \
+										 linestyle='solid', linewidth=2,  						  \
+										 color=zcolor, label=zlegend,     						  \
+										 marker='*', markersize=6, markerfacecolor=zcolor )
+
+
+			markerFigure = plt.figure( )
+			ax = markerFigure.add_subplot( 1, 1, 1 )
+			ax.add_line( xMarkerLine )
+			ax.add_line( yMarkerLine )
+			ax.add_line( zMarkerLine )
+			xmin, xmax, ymin, ymax = ax.axis('auto')
+			ax.set_xlim( xmin, xmax )
+			ax.set_ylim( ymin, ymax )
 
 	# Figure properties
 	plt.xlabel( xAxisLabel )
@@ -267,30 +424,6 @@ def plotComponentsMarkers( errorX, errorY, errorZ,                              
 
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle )
-
-	if flag == True:
-		xAxesLowerLimit = config['set_axes_position'][ 0 ]
-		xAxesUpperLimit = config['set_axes_position'][ 1 ]
-		yAxesLowerLimit = config['set_axes_position'][ 2 ]
-		yAxesUpperLimit = config['set_axes_position'][ 3 ]
-	else:
-		xAxesLowerLimit = config['set_axes_velocity'][ 0 ]
-		xAxesUpperLimit = config['set_axes_velocity'][ 1 ]
-		yAxesLowerLimit = config['set_axes_velocity'][ 2 ]
-		yAxesUpperLimit = config['set_axes_velocity'][ 3 ]
-
-	if xAxesLowerLimit != 0                                                                       \
-		or xAxesUpperLimit != 0                                                                   \
-			or yAxesLowerLimit != 0                                                               \
-				or yAxesUpperLimit != 0:
-					print "Using user defined axes limits"
-					print ""
-					ax.set_xlim( xAxesLowerLimit, xAxesUpperLimit )
-					ax.set_ylim( yAxesLowerLimit, yAxesUpperLimit )
-
-	xmin, xmax, ymin, ymax = ax.axis('auto')
-	ax.set_xlim( xmin, xmax )
-	ax.set_ylim( ymin, ymax )
 
 	plt.legend( )
 	plt.grid( True )
@@ -400,10 +533,56 @@ for errorTypeIndex in range( len( errorType ) ):
 			j2CurveColor = '1'
 
 	if config['add_j2'] == "True":
-		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False,                       \
+		if errorType[ errorTypeIndex ] == 'arrival_position':
+			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_position_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_position_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_position_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_position_magnitude'][ 3 ]
+
+				print "Using user defined axes limits for position magnitude J2 plot..."
+				print ""
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				n, bins, patches = plt.hist( j2magnitudeError, bins=50,                           \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ),          \
+											 histtype='step',                                     \
+											 normed=False, color=j2CurveColor,                    \
+											 alpha=1, label='J2' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False,               \
 									 facecolor=figureColor, alpha=1, label='Magnitude' )
-		n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',                  \
+				n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',          \
 									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
+		else:
+			if config[ 'set_axes_velocity_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_velocity_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_velocity_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_velocity_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_velocity_magnitude'][ 3 ]
+				print "Using user defined axes limits for velocity magnitude J2 plot..."
+				print ""
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, 					  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				n, bins, patches = plt.hist( j2magnitudeError, bins=50,                           \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ),          \
+											 histtype='step',                                     \
+											 normed=False, color=j2CurveColor,                    \
+											 alpha=1, label='J2' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False,               \
+									 facecolor=figureColor, alpha=1, label='Magnitude' )
+				n, bins, patches = plt.hist( j2magnitudeError, bins=50, histtype='step',          \
+									 normed=False, color=j2CurveColor, alpha=1, label='J2' )
+
 
 		j2Legend = mlines.Line2D( [], [], color=j2CurveColor, label='J2' )
 		magnitudeLegend = mpatches.Patch( color=figureColor, label='Magnitude' )
@@ -411,8 +590,63 @@ for errorTypeIndex in range( len( errorType ) ):
 		labels = [ line.get_label( ) for line in lines ]
 		plt.legend( lines, labels )
 	else:
-		n, bins, patches = plt.hist( magnitudeError, bins=50, normed=False, 					  \
-									 facecolor=figureColor, alpha=1, label='Magnitude' )
+		if errorType[ errorTypeIndex ] == 'arrival_position':
+			if config[ 'set_axes_position_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_position_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_position_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_position_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_position_magnitude'][ 3 ]
+				print "Using user defined axes limits for position magnitude plot..."
+				print ""
+				if config['normed'] == 'True':
+					weights = np.ones_like( magnitudeError ) / float( len( magnitudeError ) )
+				else:
+					weights = None
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, weights=weights, 					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				print "Using auto axes limits for position magnitude plot..."
+				print ""
+				if config['normed'] == 'True':
+					weights = np.ones_like( magnitudeError ) / float( len( magnitudeError ) )
+				else:
+					weights = None
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 normed=False, weights=weights,	  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+		else:
+			if config[ 'set_axes_velocity_magnitude_flag' ] == 'True':
+				xAxesLowerLimit = config['set_axes_velocity_magnitude'][ 0 ]
+				xAxesUpperLimit = config['set_axes_velocity_magnitude'][ 1 ]
+				yAxesLowerLimit = config['set_axes_velocity_magnitude'][ 2 ]
+				yAxesUpperLimit = config['set_axes_velocity_magnitude'][ 3 ]
+				print "Using user defined axes limits for velocity magnitude plot..."
+				print ""
+				if config['normed'] == 'True':
+					weights = np.ones_like( magnitudeError ) / float( len( magnitudeError ) )
+				else:
+					weights = None
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 range=( xAxesLowerLimit, xAxesUpperLimit ), 		  \
+											 normed=False, 					  					  \
+											 weights=weights,									  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
+				if yAxesUpperLimit != 0:
+					plt.ylim( yAxesLowerLimit, yAxesUpperLimit )
+			else:
+				print "Using auto axes limits for velocity magnitude plot..."
+				print ""
+				if config['normed'] == 'True':
+					weights = np.ones_like( magnitudeError ) / float( len( magnitudeError ) )
+				else:
+					weights = None
+				n, bins, patches = plt.hist( magnitudeError, bins=50, 							  \
+											 normed=False, weights=weights,  					  \
+									 		 facecolor=figureColor, alpha=1, label='Magnitude' )
 		# plt.legend( )
 
 	# Select appropriate unit and title for the error type
@@ -425,7 +659,10 @@ for errorTypeIndex in range( len( errorType ) ):
 
 	# Figure properties
 	plt.xlabel( xAxisLabel )
-	plt.ylabel( 'Frequency' )
+	if config['normed'] == 'True':
+		plt.ylabel( 'Normalized frequency' )
+	else:
+		plt.ylabel( 'Frequency' )
 
 	if config[ 'add_title' ] == 'True':
 			plt.title( plotTitle + " " + 'Magnitude' )
@@ -496,19 +733,24 @@ if config['frame'] == "RTN":
 		velocityErrorY[ i ] = np.inner( gamma[ 1 ][ : ], velocityErrorVectorECI )
 		velocityErrorZ[ i ] = np.inner( gamma[ 2 ][ : ], velocityErrorVectorECI )
 
+	if config['normed'] == 'True':
+		yAxisLabels = "Normalized frequency"
+	else:
+		yAxisLabels = "Frequency"
+
 	print "Plotting position error components defined in RTN frame"
 
 	if config['component_marker'] == "False":
 		plotComponents( positionErrorX, positionErrorY, positionErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"Radial", "Transverse", "Normal",                                         \
-						"Arrival position error [km]", "Frequency", "Position Error Components",  \
+						"Arrival position error [km]", yAxisLabels, "Position Error Components",  \
 						True )
 	else:
 		plotComponentsMarkers( positionErrorX, positionErrorY, positionErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "Radial", "Transverse", "Normal",                                  \
-							   "Arrival position error [km]", "Frequency",                        \
+							   "Arrival position error [km]", yAxisLabels,                        \
 							   "Position Error Components", True )
 
 	# Save figure to file.
@@ -523,13 +765,13 @@ if config['frame'] == "RTN":
 		plotComponents( velocityErrorX, velocityErrorY, velocityErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"Radial", "Transverse", "Normal",                                         \
-						"Arrival velocity error [km/s]", "Frequency", "Velocity Error Components",\
+						"Arrival velocity error [km/s]", yAxisLabels, "Velocity Error Components",\
 						False )
 	else:
 		plotComponentsMarkers( velocityErrorX, velocityErrorY, velocityErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "Radial", "Transverse", "Normal",                                  \
-							   "Arrival velocity error [km/s]", "Frequency",                      \
+							   "Arrival velocity error [km/s]", yAxisLabels,                      \
 							   "Velocity Error Components", False )
 
 	# Save figure to file.
@@ -539,19 +781,25 @@ if config['frame'] == "RTN":
 	plt.close( )
 
 else:
+
+	if config['normed'] == 'True':
+		yAxisLabels = "Normalized frequency"
+	else:
+		yAxisLabels = "Frequency"
+
 	print "Plotting position error components defined in ECI frame"
 
 	if config['component_marker'] == "False":
 		plotComponents( positionErrorX, positionErrorY, positionErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"X Axis", "Y Axis", "Z Axis",                                             \
-						"Arrival position error [km]", "Frequency", "Position Error Components",  \
+						"Arrival position error [km]", yAxisLabels, "Position Error Components",  \
 						True )
 	else:
 		plotComponentsMarkers( positionErrorX, positionErrorY, positionErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "X Axis", "Y Axis", "Z Axis",                                      \
-							   "Arrival position error [km]", "Frequency",                        \
+							   "Arrival position error [km]", yAxisLabels,                        \
 							   "Position Error Components", True )
 
 	# Save figure to file.
@@ -566,13 +814,13 @@ else:
 		plotComponents( velocityErrorX, velocityErrorY, velocityErrorZ,                           \
 						xcolor, ycolor, zcolor,                                                   \
 						"X Axis", "Y Axis", "Z Axis",                                             \
-						"Arrival velocity error [km/s]", "Frequency", "Velocity Error Components",\
+						"Arrival velocity error [km/s]", yAxisLabels, "Velocity Error Components",\
 						False )
 	else:
 		plotComponentsMarkers( velocityErrorX, velocityErrorY, velocityErrorZ,                    \
 							   xcolor, ycolor, zcolor,                                            \
 							   "X Axis", "Y Axis", "Z Axis",                                      \
-							   "Arrival velocity error [km/s]", "Frequency",                      \
+							   "Arrival velocity error [km/s]", yAxisLabels,                      \
 							   "Velocity Error Components", False )
 
 	# Save figure to file.
