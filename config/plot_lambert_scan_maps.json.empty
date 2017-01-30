@@ -12,9 +12,16 @@
     // - inclination
     // - argument_of_periapsis
     // - longitude_of_ascending_node
+    // - longitude (this is used for GEO set, longitude is defined as the sum of the argument of periapsis, the true anomaly and the longitude of the ascending node)
     // The map order is generated based on the corresponding departure column in the
     // lambert_scanner_results table in the SQLite database.
     "map_order"                 : "",
+
+    // Number of plots to be generated, starting with the first departure epoch. If left blank, scan_maps for all depature epochs will be made. 
+    "number_of_plots" : [],
+
+    // Wheter to plot the normal scan maps or the difference scan maps.
+    "plot_difference"           : false,
 
     // Directory where scan figure is stored.
     "output_directory"          : ".",

@@ -76,23 +76,161 @@ except sqlite3.Error, e:
 
 
 departure_epochs = pd.read_sql("SELECT DISTINCT departure_epoch                                   \
-                                    FROM lambert_scanner_results;",                               \
+                                FROM lambert_scanner_results;",                                   \
                                 database)
-for i in xrange(0,departure_epochs.size):
+
+if config['number_of_plots'] == []:
+    numberOfPlots = departure_epochs.size
+else:
+    numberOfPlots = config['number_of_plots'][0]
+
+for i in xrange(0,numberOfPlots):
     c = departure_epochs['departure_epoch'][i]
-    print "Plotting scan map with departure epoch: ",c,"Julian Date"
+    # print "Plotting scan map with departure epoch: ",c,"Julian Date"
                       
     # Fetch scan data.
     map_order = "departure_" + config['map_order']
-    scan_data = pd.read_sql("SELECT departure_object_id, arrival_object_id,                       \
-                                    min(transfer_delta_v), "+ map_order + "                       \
-                                FROM lambert_scanner_results                                      \
-                                WHERE departure_epoch BETWEEN " + str(c-0.00001) + "              \
-                                                      AND "+str(c+0.00001) +"                     \
-                                GROUP BY departure_object_id, arrival_object_id;",                \
+
+    if map_order == "departure_longitude" and config['plot_difference']==False:
+        print "Plotting scan map with departure epoch: ",c,"Julian Date"
+        scan_data = pd.read_sql("SELECT departure_object_id,                                      \
+                                        arrival_object_id,                                        \
+                                        min(transfer_delta_v),                                    \
+                                        departure_argument_of_periapsis,                          \
+                                        departure_longitude_of_ascending_node,                    \
+                                        departure_true_anomaly,                                   \
+                                        arrival_position_x                                        \
+                                 FROM   lambert_scanner_results                                   \
+                                 WHERE departure_epoch BETWEEN " + str(c - 0.00001) + "           \
+                                                       AND "     + str(c + 0.00001) +"            \
+                                 GROUP BY departure_object_id, arrival_object_id;",               
+                                 database)
+        scan_data.columns = ['departure_object_id',
+                             'arrival_object_id',                               
+                             'transfer_delta_v',
+                             'departure_argument_of_periapsis',                    
+                             'departure_longitude_of_ascending_node', 
+                             'departure_true_anomaly',
+                             'departure_longitude']
+
+        for x in xrange(0,int(len(scan_data))):
+            scan_data.loc[x,'departure_longitude'] =  \
+                (scan_data['departure_argument_of_periapsis'][x] 
+                    + scan_data['departure_true_anomaly'][x] 
+                        + scan_data['departure_longitude_of_ascending_node'][x]) \
+                            %(2*np.pi)
+                                                   
+    elif config['plot_difference']==False and map_order != "departure_longitude":
+        print "Plotting scan map with departure epoch: ",c,"Julian Date"
+        scan_data = pd.read_sql("SELECT departure_object_id,                                      \
+                                        arrival_object_id,                                        \
+                                        min(transfer_delta_v), "                                  \
+                                        + map_order + "                                           \
+                                 FROM lambert_scanner_results                                     \
+                                 WHERE departure_epoch BETWEEN " + str(c-0.00001) + "             \
+                                                          AND "+str(c+0.00001) +"                 \
+                                 GROUP BY departure_object_id, arrival_object_id;",               \
+                                 database)
+        scan_data.columns = ['departure_object_id','arrival_object_id',                         
+                             'transfer_delta_v',str(map_order)]
+    
+    elif map_order == "departure_longitude" and config['plot_difference']==True:
+        d = departure_epochs['departure_epoch'][i+1]
+        print "Plotting scan map difference between departure epochs: ",c," and ",d, "Julian Date"
+        scan_data = pd.read_sql("SELECT departure_object_id,                                      \
+                                        arrival_object_id,                                        \
+                                        min(transfer_delta_v),                                    \
+                                        departure_argument_of_periapsis,                          \
+                                        departure_longitude_of_ascending_node,                    \
+                                        departure_true_anomaly,                                   \
+                                        arrival_position_x                                        \
+                                 FROM   lambert_scanner_results                                   \
+                                 WHERE departure_epoch BETWEEN " + str(c - 0.00001) + "           \
+                                                       AND "     + str(c + 0.00001) +"            \
+                                 GROUP BY departure_object_id, arrival_object_id;",               
+                                 database)
+        scan_data.columns = ['departure_object_id',
+                             'arrival_object_id',                               
+                             'transfer_delta_v',
+                             'departure_argument_of_periapsis',                    
+                             'departure_longitude_of_ascending_node', 
+                             'departure_true_anomaly',
+                             'departure_longitude']
+
+        for x in xrange(0,int(len(scan_data))):
+            scan_data.loc[x,'departure_longitude'] =  \
+                (scan_data['departure_argument_of_periapsis'][x] 
+                    + scan_data['departure_true_anomaly'][x] 
+                        + scan_data['departure_longitude_of_ascending_node'][x]) \
+                            %(2*np.pi)
+
+        scan_data2 = pd.read_sql("SELECT departure_object_id,                                     \
+                                        arrival_object_id,                                        \
+                                        min(transfer_delta_v),                                    \
+                                        departure_argument_of_periapsis,                          \
+                                        departure_longitude_of_ascending_node,                    \
+                                        departure_true_anomaly,                                   \
+                                        arrival_position_x                                        \
+                                 FROM   lambert_scanner_results                                   \
+                                 WHERE departure_epoch BETWEEN " + str(d - 0.00001) + "           \
+                                                       AND "     + str(d + 0.00001) +"            \
+                                 GROUP BY departure_object_id, arrival_object_id;",               
+                                 database)
+        scan_data2.columns = ['departure_object_id',
+                             'arrival_object_id',                               
+                             'transfer_delta_v',
+                             'departure_argument_of_periapsis',                    
+                             'departure_longitude_of_ascending_node', 
+                             'departure_true_anomaly',
+                             'departure_longitude']
+
+        for x in xrange(0,int(len(scan_data2))):
+            scan_data2.loc[x,'departure_longitude'] =  \
+                (scan_data2['departure_argument_of_periapsis'][x] 
+                    + scan_data2['departure_true_anomaly'][x] 
+                        + scan_data2['departure_longitude_of_ascending_node'][x]) \
+                            %(2*np.pi)
+     
+        for x in xrange(0,len(scan_data.index)-1):
+            a = scan_data.loc[x,('transfer_delta_v')]
+            b = scan_data2.loc[x,('transfer_delta_v')]
+            c = abs(a - b)
+            scan_data.loc[x,'transfer_delta_v'] = c
+
+    elif map_order != "departure_longitude" and config['plot_difference']==True:
+        d = departure_epochs['departure_epoch'][i+1]
+        print "Plotting scan map difference between departure epochs: ",c," and ",d, "Julian Date"
+        scan_data = pd.read_sql("SELECT departure_object_id,                                      \
+                                        arrival_object_id,                                        \
+                                        min(transfer_delta_v),                                    \
+                                        "+ map_order + ",                                         \
+                                        transfer_id                                               \
+                                 FROM lambert_scanner_results                                     \
+                                 WHERE departure_epoch BETWEEN " + str( c -0.00001) + "           \
+                                                       AND "     + str( c +0.00001) +"            \
+                                 GROUP BY departure_object_id, arrival_object_id;",               \
                             database)
-    scan_data.columns = ['departure_object_id','arrival_object_id',                               \
-                         'transfer_delta_v',str(map_order)]
+        scan_data2 = pd.read_sql("SELECT departure_object_id,                                     \
+                                         arrival_object_id,                                       \
+                                         min(transfer_delta_v),                                   \
+                                         "+ map_order + ",                                        \
+                                         transfer_id                                              \
+                                  FROM lambert_scanner_results                                    \
+                                  WHERE departure_epoch BETWEEN "   + str( d -0.00001) + "        \
+                                                        AND "       + str( d +0.00001) +"         \
+                                  GROUP BY departure_object_id, arrival_object_id;",              \
+                                database)
+        scan_data.columns = ['departure_object_id','arrival_object_id', 
+                             'transfer_delta_v',str(map_order),'transfer_id']
+        scan_data2.columns = ['departure_object_id','arrival_object_id', 
+                             'transfer_delta_v',str(map_order),'transfer_id']
+
+        for x in xrange(0,len(scan_data.index)-1):
+            a = scan_data.loc[x,('transfer_delta_v')]
+            b = scan_data2.loc[x,('transfer_delta_v')]
+            c = abs(a - b)
+            scan_data.loc[x,'transfer_delta_v'] = c
+
     scan_order = scan_data.sort_values(str(map_order))                                            \
                           .drop_duplicates('departure_object_id')[                                \
                               ['departure_object_id',str(map_order)]]
@@ -100,6 +238,7 @@ for i in xrange(0,departure_epochs.size):
     scan_map = scan_data.pivot(index='departure_object_id',                                       \
                                columns='arrival_object_id',                                       
                                values='transfer_delta_v')
+
     scan_map = scan_map.reindex(index=scan_order['departure_object_id'],                          \
                                 columns=scan_order['departure_object_id'])
     
@@ -161,6 +300,7 @@ end_time = time.time( )
 # Print elapsed time
 print "Script time: " + str("{:,g}".format(end_time - start_time)) + "s"
 
+# sys.exit()
 print ""
 print "------------------------------------------------------------------"
 print "                         Exited successfully!                     "
