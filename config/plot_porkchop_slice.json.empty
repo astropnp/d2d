@@ -1,0 +1,39 @@
+// Copyright (c) 2014-2016 Kartik Kumar, Dinamica Srl (me@kartikkumar.com)
+// Copyright (c) 2016 Enne Hekma, Delft University of Technology (ennehekma@gmail.com)
+// Distributed under the MIT License.
+// See accompanying file LICENSE.md or copy at http://opensource.org/licenses/MIT
+{
+    // Path to SQLite database containing scan data.
+    "database"                  : "",
+
+    // Directory where pork chop slice figure is stored.
+    "output_directory"          : "",
+
+    // Departure and arrival objects. 
+    // If empty the departure and arrival objects of the lowest dV in the database is chosen. 
+    // Format: [departure object id, arrival object id] in integers.
+    "objects"                   : [],
+
+    // Departure epoch for the pork chop slice. In Julian Days.
+    // If 0 the departue epoch of the lowest dV in the database is chosen.
+    "departure_epoch"           : 0,
+
+    // Plot only the Lambert slice.
+    "plot_lambert"              : true,
+
+    // Plot Lambert and Atom in one plot, including a difference plot beneath it. A atom_scanner_results should be included. 
+    "plot_difference_atom"      : false,
+
+
+    // Filename for scan figure.
+    // Files are saved as png.
+    "scan_figure"               : "",
+
+    // Give maximum dV displayed on the y-axis in the plot.
+    // If 0 no cutoff is assumed and all dV are displayed.
+    "cutoff"                    : 0,
+    
+    // Set parameters for figures.
+    "figure_dpi"                : 300,
+    "colormap"                  : "jet"
+}
