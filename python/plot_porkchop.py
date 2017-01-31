@@ -127,7 +127,17 @@ if config['transfer_deltaV_cutoff'] != 0:
 cmap = plt.get_cmap(config['colormap'])
 fig=plt.figure()
 ax1 = fig.add_subplot(111)
-data = ax1.contourf(y1,x1,z,cmap=cmap)
+
+if config['interpolation']==True:
+	data = ax1.contourf(y1,x1,z,cmap=cmap) 
+
+if config['interpolation']==False:
+	y2 = np.row_stack((y1,y1[-1]+(y1[-1]-y1[-2])))
+	y3 = np.column_stack((y2,y2[:,-1]))
+	x2 = np.column_stack((x1,x1[:,-1]+(x1[:,-1]-x1[:,-2])))
+	x3 = np.row_stack((x2,x2[-1]))
+	data = ax1.pcolormesh(y3,x3,z,cmap=cmap)
+
 cbar = plt.colorbar(data, cmap=cmap)
 formatter = matplotlib.ticker.ScalarFormatter(useOffset=False)
 ax1.xaxis.set_major_formatter(formatter)

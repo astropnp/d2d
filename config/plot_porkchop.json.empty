@@ -22,6 +22,9 @@
     // display more or less details. If 0 no cutoff is assumed.
     "transfer_deltaV_cutoff"    : 0,
 
+    // Indicate if plotting should be done with interpolation (countourf) or not (pcolormesh).
+    "interpolation"             : false,
+
     // Plot title or not, title includes information on the plot but isn't desired for publication.
     // Give "True" if title is desired, "False" if not.
     "title"                     : "",
