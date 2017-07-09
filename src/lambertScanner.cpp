@@ -193,7 +193,7 @@ void executeLambertScanner( const rapidjson::Document& config )
             {
                 DateTime departureEpoch = input.departureEpochInitial;
                 departureEpoch = departureEpoch.AddSeconds( input.departureEpochStepSize * m );
-                
+
                 const Eci tleDepartureState = sgp4Departure.FindPosition( departureEpoch );
                 const Vector6 departureState = getStateVector( tleDepartureState );
 
@@ -211,7 +211,7 @@ void executeLambertScanner( const rapidjson::Document& config )
                     = astro::convertCartesianToKeplerianElements( departureState,
                                                                   earthGravitationalParameter );
                 const int departureObjectId = static_cast< int >( departureObject.NoradNumber( ) );
-            
+
                 // Loop over time-of-flight grid.
                 for ( int k = 0; k < input.timeOfFlightSteps; k++ )
                 {
@@ -356,7 +356,7 @@ void executeLambertScanner( const rapidjson::Document& config )
                     // Reset SQL insert query.
                     query.reset( );
                 }
-            }    
+            }
         }
 
         ++showProgress;

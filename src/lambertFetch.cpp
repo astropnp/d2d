@@ -12,6 +12,8 @@
 
 #include <keplerian_toolbox.h>
 
+#include <sqlite3.h>
+
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <Astro/astro.hpp>
